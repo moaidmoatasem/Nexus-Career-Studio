@@ -1,5 +1,7 @@
 # Roadmap
 
+The step-by-step plan for what's left is in [PLAN.md](PLAN.md).
+
 - [x] Enable Lovable Cloud, sign-in (email + Google), database (profiles, vault, jobs, applications, sponsors)
 - [x] Port scorer, sponsor matcher (SQL), provenance auditor, AI functions (extract, tailor, classify)
 - [x] Screens: landing, sign-in, Role Radar, Career Vault, Synthesizer, Applications, Sponsor Oracle, ATS Resume
