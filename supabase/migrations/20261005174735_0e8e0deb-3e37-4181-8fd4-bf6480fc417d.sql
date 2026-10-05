@@ -1,0 +1,3 @@
+CREATE POLICY "no direct access to gmail sync state" ON public.gmail_sync_state FOR ALL TO authenticated USING (false) WITH CHECK (false);
+CREATE POLICY "no direct access to sponsor import rows" ON public.sponsor_import_rows FOR ALL TO authenticated USING (false) WITH CHECK (false);
+CREATE POLICY "no direct access to automation jobs" ON public.automation_jobs FOR ALL TO authenticated USING (false) WITH CHECK (false);

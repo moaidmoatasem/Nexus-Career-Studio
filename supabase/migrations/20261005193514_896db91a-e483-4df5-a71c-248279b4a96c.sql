@@ -1,0 +1,1 @@
+CREATE POLICY "read own portal screenshots" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'portal-screenshots' AND (storage.foldername(name))[1] = auth.uid()::text);

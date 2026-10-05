@@ -1,7 +1,0 @@
-{
-  "name": "Cherenkov Nexus Career Studio",
-  "description": "Autonomous AI career copilot with deterministic reference-bound resume tailoring, UK/EU visa sponsorship oracle, ATS email classifier, and Lovable transition blueprint.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
-
