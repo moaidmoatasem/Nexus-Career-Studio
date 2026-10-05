@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateStructured } from "./ai.server";
 import { auditFreeText, evidenceNumbers, itemEvidence, validateBulletProvenance } from "./provenance";

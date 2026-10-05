@@ -26,14 +26,16 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     const notes: string[] = [];
 
     // Revoke Gmail access first so no mailbox grant outlives the account. An unreadable
-    // handle is still deleted; a failed revoke is reported so the user can remove access at Google.
-    const { getConnectionKeyForUser, deleteConnectionKeyForUser } = await import("@/server/appUserConnections.server");
-    const key = await getConnectionKeyForUser(uid, "google_mail").catch(() => null);
-    if (key) {
-      const { disconnectAppUser } = await import("@/integrations/lovable/appUserConnector.server");
-      await disconnectAppUser(key).catch(() => notes.push("Gmail access could not be revoked automatically — remove Nexus under Third-party connections at myaccount.google.com."));
+    // token is still deleted; a failed revoke is reported so the user can remove access at Google.
+    const { disconnectGmailForUser, hasGmailConnection } = await import("@/server/gmailApi.server");
+    if (await hasGmailConnection(uid)) {
+      try {
+        const { revoked } = await disconnectGmailForUser(uid);
+        if (!revoked) notes.push("Gmail access could not be revoked automatically — remove Nexus under Third-party connections at myaccount.google.com/connections.");
+      } catch (e) {
+        problems.push(`gmail connection: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
-    await deleteConnectionKeyForUser(uid, "google_mail").catch((e: unknown) => problems.push(`gmail connection: ${e instanceof Error ? e.message : String(e)}`));
 
     // Portal helper screenshots live in storage, outside the tables below.
     const { data: shots, error: listError } = await db.storage.from(SCREENSHOT_BUCKET).list(uid, { limit: 1000 });

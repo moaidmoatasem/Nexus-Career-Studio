@@ -2,11 +2,7 @@ import { AiError } from "@/lib/ai.server";
 import { classifyRecruitmentEmail } from "@/lib/email-classifier.server";
 import { jobLinks, mailSourceKind, matchApplication } from "@/lib/mailMatch";
 import { isSubmittedStage, nextStageFromEmail, stageForEmail } from "@/lib/stages";
-import { callAsAppUser, reconnectRequired } from "@/integrations/lovable/appUserConnector.server";
-import { getConnectionKeyForUser } from "./appUserConnections.server";
-
-const CONNECTOR_ID = "google_mail";
-export const GMAIL_SCOPES = ["https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/gmail.readonly"];
+import { gmailFetch, GmailReconnectError, hasGmailConnection } from "./gmailApi.server";
 /** Classifier confidence required before an email may change an application. */
 const MIN_CLASSIFIER_CONFIDENCE = 0.75;
 
@@ -27,13 +23,12 @@ function bodyText(part?: GmailPart): string {
 }
 
 export async function registerGmailWatch(userId: string) {
-  const key = await getConnectionKeyForUser(userId, CONNECTOR_ID);
-  if (!key) throw new Error("Connect Gmail before enabling inbox updates.");
+  if (!(await hasGmailConnection(userId))) throw new Error("Connect Gmail before enabling inbox updates.");
   const topicName = process.env['GMAIL_PUBSUB_TOPIC'];
   if (!topicName) return { enabled: false as const, reason: "Google push notifications are not configured yet." };
   // The push endpoint rejects every notification without this, so don't start a watch that can't be delivered.
   if (!process.env['GMAIL_PUBSUB_SERVICE_ACCOUNT']) return { enabled: false as const, reason: "Google push notifications need GMAIL_PUBSUB_SERVICE_ACCOUNT on the server." };
-  const response = await callAsAppUser(key, "/gmail/v1/users/me/watch", GMAIL_SCOPES, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topicName, labelIds: ["INBOX"], labelFilterBehavior: "include" }) });
+  const response = await gmailFetch(userId, "/gmail/v1/users/me/watch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topicName, labelIds: ["INBOX"], labelFilterBehavior: "include" }) });
   const text = await response.text();
   if (!response.ok) throw new Error(`Gmail notifications could not start (${response.status}): ${text.slice(0, 300)}`);
   const watch = JSON.parse(text) as { historyId?: string; expiration?: string };
@@ -43,8 +38,7 @@ export async function registerGmailWatch(userId: string) {
 }
 
 export async function syncGmailForUser(userId: string, maxMessages = 20) {
-  const key = await getConnectionKeyForUser(userId, CONNECTOR_ID);
-  if (!key) return { ok: false as const, reconnectRequired: false, error: "Connect Gmail before checking your inbox." };
+  if (!(await hasGmailConnection(userId))) return { ok: false as const, reconnectRequired: false, error: "Connect Gmail before checking your inbox." };
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: state } = await supabaseAdmin.from("gmail_sync_state").select("history_id,status,lease_expires_at").eq("user_id", userId).maybeSingle();
   if (state?.status === "paused") return { ok: false as const, reconnectRequired: false, error: state.status };
@@ -61,9 +55,8 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
     let ids: string[] = [];
     let newestHistory = state?.history_id ?? null;
     if (state?.history_id) {
-      const history = await callAsAppUser(key, `/gmail/v1/users/me/history?startHistoryId=${encodeURIComponent(state.history_id)}&historyTypes=messageAdded&labelId=INBOX&maxResults=${maxMessages}`, GMAIL_SCOPES);
+      const history = await gmailFetch(userId, `/gmail/v1/users/me/history?startHistoryId=${encodeURIComponent(state.history_id)}&historyTypes=messageAdded&labelId=INBOX&maxResults=${maxMessages}`);
       if (history.status !== 404) {
-        if (await reconnectRequired(history)) return await needsReconnect();
         if (!history.ok) throw new Error(`Gmail history check failed (${history.status}).`);
         const body = await history.json() as { historyId?: string; history?: Array<{ messagesAdded?: Array<{ message?: { id?: string } }> }> };
         ids = [...new Set((body.history ?? []).flatMap((entry) => entry.messagesAdded ?? []).flatMap((entry) => entry.message?.id ? [entry.message.id] : []))].slice(0, maxMessages);
@@ -72,12 +65,11 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
     }
     if (!state?.history_id || !newestHistory || ids.length === 0) {
       const query = 'newer_than:30d {application interview recruiter screening assessment offer rejection "next steps" "job alert"} -category:promotions';
-      const list = await callAsAppUser(key, `/gmail/v1/users/me/messages?maxResults=${maxMessages}&q=${encodeURIComponent(query)}`, GMAIL_SCOPES);
-      if (await reconnectRequired(list)) return await needsReconnect();
+      const list = await gmailFetch(userId, `/gmail/v1/users/me/messages?maxResults=${maxMessages}&q=${encodeURIComponent(query)}`);
       if (!list.ok) throw new Error(`Gmail inbox check failed (${list.status}).`);
       const body = await list.json() as { messages?: Array<{ id: string }> };
       ids = (body.messages ?? []).map((item) => item.id);
-      const profile = await callAsAppUser(key, "/gmail/v1/users/me/profile", GMAIL_SCOPES);
+      const profile = await gmailFetch(userId, "/gmail/v1/users/me/profile");
       if (profile.ok) { const p = await profile.json() as { historyId?: string; emailAddress?: string }; newestHistory = p.historyId ?? newestHistory; await supabaseAdmin.from("gmail_sync_state").upsert({ user_id: userId, mailbox_email: p.emailAddress ?? null, history_id: newestHistory, status: "syncing", lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString() }, { onConflict: "user_id" }); }
     }
     const { data: seenRows } = ids.length ? await supabaseAdmin.from("processed_mail_messages").select("provider_message_id").eq("user_id", userId).eq("provider", "gmail").in("provider_message_id", ids) : { data: [] };
@@ -87,7 +79,7 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
     const apps = (appRows ?? []) as AppRow[];
     let processed = 0; let matched = 0;
     for (const id of fresh) {
-      const response = await callAsAppUser(key, `/gmail/v1/users/me/messages/${id}?format=full&fields=id,historyId,internalDate,snippet,payload`, GMAIL_SCOPES);
+      const response = await gmailFetch(userId, `/gmail/v1/users/me/messages/${id}?format=full&fields=id,historyId,internalDate,snippet,payload`);
       if (!response.ok) continue;
       const message = await response.json() as GmailMessage;
       const sender = header(message, "From"); const subject = header(message, "Subject"); const body = (bodyText(message.payload) || message.snippet || "").slice(0, 20_000);
@@ -135,6 +127,7 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
     await supabaseAdmin.from("source_connections").upsert({ user_id: userId, source: "gmail", enabled: true, status: "ready", last_synced_at: now, last_error: null }, { onConflict: "user_id,source" });
     return { ok: true as const, checked: ids.length, processed, matched };
   } catch (error) {
+    if (error instanceof GmailReconnectError) return await needsReconnect();
     const message = error instanceof Error ? error.message : "Gmail sync failed.";
     const paused = error instanceof AiError && [402, 403].includes(error.status);
     await supabaseAdmin.from("gmail_sync_state").upsert({ user_id: userId, status: paused ? "paused" : "needs_attention", last_error: message, lease_expires_at: null }, { onConflict: "user_id" });

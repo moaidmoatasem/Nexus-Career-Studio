@@ -40,11 +40,20 @@ const extractionSchema = {
   additionalProperties: false,
 };
 
-function firecrawlHeaders() {
-  const lovable = process.env['LOVABLE_API_KEY'];
-  const firecrawl = process.env['FIRECRAWL_API_KEY'];
-  if (!lovable || !firecrawl) throw new Error("Career-page discovery is not connected.");
-  return { Authorization: `Bearer ${lovable}`, "X-Connection-Api-Key": firecrawl, "Content-Type": "application/json" };
+/**
+ * Firecrawl's v2 API, hosted (api.firecrawl.dev, needs FIRECRAWL_API_KEY) or self-hosted
+ * (set FIRECRAWL_API_URL; a key is optional there).
+ */
+function firecrawl(path: "/v2/search" | "/v2/scrape", body: unknown) {
+  const base = (process.env['FIRECRAWL_API_URL']?.trim() || "https://api.firecrawl.dev").replace(/\/+$/, "");
+  const key = process.env['FIRECRAWL_API_KEY']?.trim();
+  if (!key && !process.env['FIRECRAWL_API_URL']) throw new Error("Job-page reading is not set up: set FIRECRAWL_API_KEY (or FIRECRAWL_API_URL for a self-hosted Firecrawl).");
+  return fetch(`${base}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(key ? { Authorization: `Bearer ${key}` } : {}) },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(90_000),
+  });
 }
 
 export function canonicalizeJobUrl(raw: string) {
@@ -103,9 +112,7 @@ export async function saveJobForUser(db: Db, userId: string, job: ExtractedJob, 
 }
 
 export async function searchPublicJobs(query: string, limit = 6) {
-  const response = await fetch("https://connector-gateway.lovable.dev/firecrawl/v2/search", {
-    method: "POST", headers: firecrawlHeaders(), body: JSON.stringify({ query, limit }),
-  });
+  const response = await firecrawl("/v2/search", { query, limit });
   const text = await response.text();
   if (!response.ok) throw new Error(`Job discovery failed [${response.status}]: ${text.slice(0, 300)}`);
   const raw = JSON.parse(text) as { data?: { web?: Array<{ url?: string }> } };
@@ -114,14 +121,10 @@ export async function searchPublicJobs(query: string, limit = 6) {
 
 export async function extractPublicJob(rawUrl: string): Promise<ExtractedJob> {
   const canonicalUrl = canonicalizeJobUrl(rawUrl);
-  const response = await fetch("https://connector-gateway.lovable.dev/firecrawl/v2/scrape", {
-    method: "POST",
-    headers: firecrawlHeaders(),
-    body: JSON.stringify({
-      url: canonicalUrl,
-      onlyMainContent: true,
-      formats: [{ type: "json", schema: extractionSchema, prompt: "Extract only facts explicitly stated in this current job posting. Use empty values when absent. Never infer employer, salary, skills, experience, or location." }],
-    }),
+  const response = await firecrawl("/v2/scrape", {
+    url: canonicalUrl,
+    onlyMainContent: true,
+    formats: [{ type: "json", schema: extractionSchema, prompt: "Extract only facts explicitly stated in this current job posting. Use empty values when absent. Never infer employer, salary, skills, experience, or location." }],
   });
   const text = await response.text();
   if (!response.ok) throw new Error(`Job page could not be read [${response.status}]: ${text.slice(0, 300)}`);

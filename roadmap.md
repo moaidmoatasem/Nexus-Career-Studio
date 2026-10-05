@@ -25,6 +25,7 @@
 - [x] Sponsor register refresh (button + weekly), match reasons, listing sponsorship wording
 - [x] Insights (funnel, response rate, days to reply, career gaps) and Needs-your-decision queue with email linking
 - [x] Settings: export and delete account; backup/restore docs
+- [x] Standalone: own Supabase, any OpenAI-compatible AI, direct Google OAuth + Gmail API, Firecrawl API, plain Vite build — no Lovable services
 - [ ] Real Gmail walk-through — blocked on your Google consent in the preview
 - [ ] Gmail live push activation — blocked until the Google Pub/Sub topic and authenticated push subscription are configured
 - [ ] Later: Arabic RTL toggle
