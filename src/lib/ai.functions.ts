@@ -2,8 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateStructured } from "./ai.server";
-import { validateBulletProvenance } from "./provenance";
-import { calculateFitScore } from "./scoring";
+import { auditFreeText, evidenceNumbers, itemEvidence, validateBulletProvenance } from "./provenance";
+import { scoreRole } from "./scoring";
+import { matchApplication } from "./mailMatch";
+import { isSubmittedStage, nextStageFromEmail, stageForEmail } from "./stages";
 import { classifyRecruitmentEmail, type EmailClassification } from "./email-classifier.server";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -69,42 +71,39 @@ export const synthesizePack = createServerFn({ method: "POST" })
       const sb = context.supabase;
       const [{ data: job }, { data: vault }, { data: profile }] = await Promise.all([
         sb.from("jobs").select("*").eq("id", data.jobId).maybeSingle(),
-        sb.from("vault_items").select("*").eq("user_id", context.userId),
+        // Only evidence the candidate has verified may be used in tailored materials.
+        sb.from("vault_items").select("*").eq("user_id", context.userId).eq("is_verified", true),
         sb.from("profiles").select("*").eq("id", context.userId).maybeSingle(),
       ]);
       if (!job) throw new Error("Job not found.");
-      if (!vault?.length) throw new Error("Add items to your Career Vault first.");
+      if (!vault?.length) throw new Error("Verify at least one Career Vault item first — only verified evidence is used.");
       const { data: sponsor } = await sb.rpc("match_sponsor_company_v3", { search_term: job.company_name });
-      const score = calculateFitScore(
-        {
-          skills: vault.flatMap((v) => v.skills),
-          years: profile?.years_experience ?? 0,
-          domains: profile?.target_domains ?? [],
-          requiresVisa: profile?.requires_visa ?? false,
-        },
-        {
-          requiredSkills: job.required_skills,
-          preferredSkills: job.preferred_skills,
-          minYearsExp: job.min_years_exp,
-          domain: job.domain,
-          sponsorVerified: (sponsor?.length ?? 0) > 0,
-        },
-      );
-      const vaultForPrompt = vault.map((v) => ({ id: v.id, title: v.title, organization: v.organization, description: v.description, metrics: v.metrics, skills: v.skills }));
+      const score = scoreRole({ vault, profile, job, sponsorSimilarity: sponsor?.[0]?.similarity ?? null });
+      const vaultForPrompt = vault.map((v) => ({ id: v.id, title: v.title, organization: v.organization, start_date: v.start_date, end_date: v.end_date, description: v.description, metrics: v.metrics, skills: v.skills }));
       const out = await generateStructured({
         instructions:
-          "You are an ATS resume optimizer enforcing reference binding. Every bullet MUST cite an existing vault_item_id from the provided vault. `verified_metrics` may only contain strings copied verbatim from that item's metrics. Never invent metrics, employers, tools or skills. Write 4–6 bullets, a 3-paragraph cover letter, and a recruiter outreach note of at most 75 words.",
-        prompt: `Candidate: ${profile?.full_name || "Candidate"}\nJob: ${job.title} at ${job.company_name}\nRequired: ${job.required_skills.join(", ")}\nPreferred: ${job.preferred_skills.join(", ")}\nDescription: ${job.description}\n\nCareer Vault (JSON):\n${JSON.stringify(vaultForPrompt)}`,
+          "You are an ATS resume optimizer enforcing reference binding. Every bullet MUST cite an existing vault_item_id from the provided vault. `verified_metrics` may only contain strings copied verbatim from that item's metrics. Never invent metrics, employers, tools or skills. Every number you write — in bullets, the cover letter and the outreach note — must appear in the vault data, the candidate's stated years of experience, or the job posting; never estimate or round. Write 4–6 bullets, a 3-paragraph cover letter, and a recruiter outreach note of at most 75 words.",
+        prompt: `Candidate: ${profile?.full_name || "Candidate"}\nYears of experience: ${profile?.years_experience ?? "not stated"}\nJob: ${job.title} at ${job.company_name}\nRequired: ${job.required_skills.join(", ")}\nPreferred: ${job.preferred_skills.join(", ")}\nDescription: ${job.description}\n\nCareer Vault (JSON):\n${JSON.stringify(vaultForPrompt)}`,
         schema: packSchema,
       });
       const audit = validateBulletProvenance(out.bullets, vault);
+      // Free text may reuse numbers from verified evidence, the profile, or the posting itself.
+      const allowed = evidenceNumbers([
+        ...vault.flatMap(itemEvidence),
+        profile ? String(profile.years_experience) : null,
+        job.title, job.description, job.salary_range, job.location, String(job.min_years_exp),
+        ...job.required_skills, ...job.preferred_skills,
+      ]);
+      const letter = auditFreeText(out.cover_letter, allowed, "cover_letter");
+      const note = auditFreeText(out.recruiter_outreach, allowed, "recruiter_outreach");
+      const rejected = [...audit.violations, ...letter.violations, ...note.violations];
       const pack = {
         bullets: audit.validBullets,
-        rejected: audit.violations,
-        coverLetter: out.cover_letter,
-        recruiterOutreach: out.recruiter_outreach,
+        rejected,
+        coverLetter: letter.text,
+        recruiterOutreach: note.text,
         scoreBreakdown: score,
-        provenanceValid: audit.isValid,
+        provenanceValid: rejected.length === 0,
         generatedAt: new Date().toISOString(),
       };
       const { data: app, error } = await sb
@@ -116,7 +115,7 @@ export const synthesizePack = createServerFn({ method: "POST" })
         .select("id")
         .single();
       if (error) throw new Error(error.message);
-      await sb.from("application_events").insert({ user_id: context.userId, application_id: app.id, job_id: job.id, event_type: "tailored", title: "Application pack prepared", detail: `${job.title} at ${job.company_name}`, source: "ai" });
+      await sb.from("application_events").insert({ user_id: context.userId, application_id: app.id, job_id: job.id, event_type: "tailored", title: "Application pack prepared", detail: `${job.title} at ${job.company_name}${rejected.length ? ` · ${rejected.length} unsupported line(s) removed` : ""}`, source: "ai" });
       return { ok: true, data: { applicationId: app.id } };
     } catch (e) {
       return fail(e);
@@ -126,44 +125,34 @@ export const synthesizePack = createServerFn({ method: "POST" })
 /* 3. ATS email classifier */
 export type { EmailClassification } from "./email-classifier.server";
 
-const STATUS_MAP: Record<string, string | null> = {
-  applied_ack: "applied",
-  screening: "screening",
-  interview_invite: "interviewing",
-  offer: "offered",
-  rejection: "rejected",
-  action_required: null,
-  informational: null,
-};
-
 export const classifyEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { subject: string; body: string; sender: string }) =>
     z.object({ subject: z.string().max(500), body: z.string().min(5).max(20000), sender: z.string().max(300) }).parse(d),
   )
-  .handler(async ({ data, context }): Promise<Result<EmailClassification & { movedApplicationId: string | null }>> => {
+  .handler(async ({ data, context }): Promise<Result<EmailClassification & { movedApplicationId: string | null; matchNote: string }>> => {
     try {
       const out = await classifyRecruitmentEmail(data);
-      let moved: string | null = null;
-      const next = STATUS_MAP[out.status];
-      if (out.company_name) {
-        const { data: apps } = await context.supabase
-          .from("applications")
-          .select("id, jobs!inner(company_name)")
-          .eq("user_id", context.userId)
-          .ilike("jobs.company_name", `%${out.company_name.split(" ")[0]}%`)
-          .limit(1);
-        const app = apps?.[0];
-        if (app) {
-          await context.supabase
-            .from("applications")
-            .update({ ...(next ? { status: next } : {}), last_email_status: out.status, next_action: out.action_summary, updated_at: new Date().toISOString() })
-            .eq("id", app.id);
-          await context.supabase.from("application_events").insert({ user_id: context.userId, application_id: app.id, event_type: "email_classified", title: "Recruiter email classified", detail: `${out.company_name}: ${out.action_summary}`, source: "email" });
-          moved = app.id;
-        }
+      // Same rules as Gmail sync: employer AND role must both be named, and the classifier must be confident.
+      const { data: apps, error } = await context.supabase.from("applications").select("id,job_id,status,applied_at,jobs(company_name,title)").eq("user_id", context.userId);
+      if (error) throw new Error(error.message);
+      const match = matchApplication(apps ?? [], { companyName: out.company_name, subject: data.subject, sender: data.sender, body: data.body });
+      const app = match.app && out.confidence >= 0.75 ? match.app : null;
+      if (!app) {
+        const why = match.app ? `the classifier is only ${Math.round(out.confidence * 100)}% sure` : match.reason.charAt(0).toLowerCase() + match.reason.slice(1);
+        return { ok: true, data: { ...out, movedApplicationId: null, matchNote: `Nothing was moved: ${why}. Open the application and update it yourself if this email belongs to it.` } };
       }
-      return { ok: true, data: { ...out, movedApplicationId: moved } };
+      const next = nextStageFromEmail(app.status, stageForEmail(out.status));
+      const now = new Date().toISOString();
+      const appliedAt = next && isSubmittedStage(next) && !app.applied_at ? now : null;
+      const { error: updateError } = await context.supabase
+        .from("applications")
+        .update({ ...(next ? { status: next } : {}), ...(appliedAt ? { applied_at: appliedAt } : {}), last_email_status: out.status, next_action: out.action_summary, updated_at: now })
+        .eq("id", app.id);
+      if (updateError) throw new Error(updateError.message);
+      await context.supabase.from("application_events").insert({ user_id: context.userId, application_id: app.id, job_id: app.job_id, event_type: "email_classified", title: "Recruiter email classified", detail: `${out.company_name}: ${out.action_summary}${next ? ` · moved to ${next}` : ""}`, source: "email" });
+      const title = app.jobs ? `${app.jobs.title} at ${app.jobs.company_name}` : "the matching application";
+      return { ok: true, data: { ...out, movedApplicationId: app.id, matchNote: next ? `Moved ${title} to ${next}.` : `Updated the next step for ${title}; its stage stays at ${app.status}.` } };
     } catch (e) {
       return fail(e);
     }

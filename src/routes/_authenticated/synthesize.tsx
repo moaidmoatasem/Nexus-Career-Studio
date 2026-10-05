@@ -45,7 +45,7 @@ function SynthPage() {
 
   return (
     <div>
-      <PageHeader title="Prepare application" sub="Create role-specific materials using only your verified career evidence.">
+      <PageHeader title="Prepare application" sub="Create role-specific materials from verified Career Vault items. Every number is fact-checked against them.">
         <div className="flex gap-2">
           <Select value={jobId} onValueChange={(v) => navigate({ search: { job: v } })}>
             <SelectTrigger className="w-72"><SelectValue placeholder="Choose a role" /></SelectTrigger>
@@ -65,7 +65,9 @@ function SynthPage() {
             <div className={`flex items-center gap-3 rounded-lg border p-4 ${pack.provenanceValid ? "border-success/40 bg-success/10" : "border-warning/40 bg-warning/10"}`}>
               {pack.provenanceValid ? <ShieldCheck className="h-5 w-5 text-success" /> : <ShieldAlert className="h-5 w-5 text-warning" />}
               <div className="text-sm">
-                {pack.provenanceValid ? "Provenance audit passed — every claim is grounded." : `${pack.rejected.length} ungrounded claim(s) removed by the auditor.`}
+                {pack.provenanceValid
+                  ? "Fact-check passed — every number and metric traces to your verified Career Vault."
+                  : `${pack.rejected.length} unsupported line(s) removed by the fact-check. Review the materials before sending.`}
               </div>
             </div>
             <section className="rounded-lg border bg-card p-5">
@@ -80,7 +82,7 @@ function SynthPage() {
                 ))}
               </ul>
               {pack.rejected.length > 0 && (
-                <div className="mt-4 space-y-1 border-t pt-3">{pack.rejected.map((v, i) => <p key={i} className="text-xs text-destructive">✕ {v.detail}</p>)}</div>
+                <div className="mt-4 space-y-1 border-t pt-3">{pack.rejected.map((v, i) => <p key={i} className="text-xs text-destructive">✕ {v.scope === "cover_letter" ? "Cover letter: " : v.scope === "recruiter_outreach" ? "Recruiter note: " : ""}{v.detail}</p>)}</div>
               )}
             </section>
             <section className="rounded-lg border bg-card p-5">

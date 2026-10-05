@@ -78,7 +78,7 @@ function WorkspaceSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="px-3 pb-4">
-        {!collapsed && <div className="mb-2 rounded-md border border-sidebar-border bg-sidebar-accent/45 p-3"><p className="text-xs font-medium text-sidebar-accent-foreground">Evidence protected</p><p className="mt-1 text-[11px] leading-relaxed text-sidebar-foreground/55">Tailored claims are checked against your vault.</p></div>}
+        {!collapsed && <div className="mb-2 rounded-md border border-sidebar-border bg-sidebar-accent/45 p-3"><p className="text-xs font-medium text-sidebar-accent-foreground">Evidence protected</p><p className="mt-1 text-[11px] leading-relaxed text-sidebar-foreground/55">Numbers in tailored materials are checked against your verified vault.</p></div>}
         <Button variant="ghost" className="justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" onClick={async () => { await supabase.auth.signOut(); navigate({ to: "/" }); }}>
           <LogOut className="size-4" />{!collapsed && "Sign out"}
         </Button>

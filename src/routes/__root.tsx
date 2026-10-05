@@ -68,7 +68,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Nexus Career Studio" },
-      { name: "description", content: "Grounded, zero-hallucination job applications with UK sponsor checks." },
+      { name: "description", content: "Evidence-grounded job applications with UK sponsor checks." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

@@ -20,7 +20,8 @@ export function InsightsPanel() {
   const r = responseStats(list, events.data ?? []);
   const titles = (profile.data?.target_titles ?? []).map((t) => t.toLowerCase());
   const targetJobs = (jobs.data ?? []).filter((j) => !titles.length || titles.some((t) => j.title.toLowerCase().includes(t.split(" ")[0] ?? t)));
-  const gaps = skillGaps(targetJobs.map((j) => j.required_skills), (vault.data ?? []).flatMap((v) => v.skills));
+  // Skills that only appear in unverified items still count as gaps: they lack verified evidence.
+  const gaps = skillGaps(targetJobs.map((j) => j.required_skills), (vault.data ?? []).filter((v) => v.is_verified).flatMap((v) => v.skills));
   const max = Math.max(1, f[0]?.count ?? 1);
 
   return <section className="mt-6 grid gap-4 lg:grid-cols-2">

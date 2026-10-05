@@ -21,9 +21,12 @@ function ResumePage() {
   const profile = useProfile();
   const apps = useApplications();
   const pack = apps.data?.find((a) => a.job_id === job)?.tailored_pack as unknown as TailoredPack | undefined;
-  const experiences = (vault.data ?? []).filter((v) => v.category === "experience" || v.category === "project");
-  const education = (vault.data ?? []).filter((v) => v.category === "education" || v.category === "certification");
-  const skills = Array.from(new Set((vault.data ?? []).flatMap((v) => v.skills)));
+  // The resume is built only from evidence the candidate has verified.
+  const verified = (vault.data ?? []).filter((v) => v.is_verified);
+  const unverifiedCount = (vault.data?.length ?? 0) - verified.length;
+  const experiences = verified.filter((v) => v.category === "experience" || v.category === "project");
+  const education = verified.filter((v) => v.category === "education" || v.category === "certification");
+  const skills = Array.from(new Set(verified.flatMap((v) => v.skills)));
   const [busy, setBusy] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<AtsProfile>("generic");
   const bulletsFor = (id: string, fallback: string[]) => {
@@ -46,6 +49,7 @@ function ResumePage() {
     <div>
       <div className="mb-6 rounded-md border bg-card p-4 print:hidden">
         <p className="text-sm text-muted-foreground">{pack ? "Using fact-checked tailored lines for the selected role." : "Showing your general resume. Prepare an application to tailor it."}</p>
+        {unverifiedCount > 0 && <p className="mt-1 text-xs text-warning">{unverifiedCount} unverified Career Vault item{unverifiedCount === 1 ? " is" : "s are"} left out. Verify {unverifiedCount === 1 ? "it" : "them"} in Career profile to include {unverifiedCount === 1 ? "it" : "them"}.</p>}
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           {(Object.keys(PROFILES) as AtsProfile[]).map((id) => <button key={id} type="button" onClick={() => setProfileId(id)} className={`rounded-md border p-3 text-left text-sm ${profileId === id ? "border-primary bg-primary/10" : "hover:bg-secondary"}`}><span className="font-medium">{PROFILES[id].label}</span><span className="mt-1 block text-xs text-muted-foreground">{PROFILES[id].hint}</span></button>)}
         </div>

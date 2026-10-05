@@ -1,4 +1,7 @@
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
+import { hostIs } from "./mailMatch";
 
 const extractedJobSchema = z.object({
   title: z.string().trim().min(2),
@@ -55,14 +58,48 @@ export function canonicalizeJobUrl(raw: string) {
 }
 
 export function sourceProvider(url: string) {
-  const host = new URL(url).hostname.toLowerCase();
-  if (host.includes("linkedin")) return "linkedin";
-  if (host.includes("indeed")) return "indeed";
-  if (host.includes("myworkdayjobs")) return "workday";
-  if (host.includes("greenhouse")) return "greenhouse";
-  if (host.includes("lever.co")) return "lever";
-  if (host.includes("ashbyhq")) return "ashby";
+  const host = new URL(url).hostname;
+  if (hostIs(host, "linkedin.com")) return "linkedin";
+  if (hostIs(host, "indeed.com")) return "indeed";
+  if (hostIs(host, "myworkdayjobs.com")) return "workday";
+  if (hostIs(host, "greenhouse.io")) return "greenhouse";
+  if (hostIs(host, "lever.co")) return "lever";
+  if (hostIs(host, "ashbyhq.com")) return "ashby";
   return "career_page";
+}
+
+type Db = SupabaseClient<Database>;
+
+/**
+ * Canonical URLs (from `urls`) that are already in the catalog or this user's own roles.
+ * Checked before extraction so known postings cost nothing to re-discover.
+ */
+export async function knownJobUrls(db: Db, userId: string, urls: string[]): Promise<Set<string>> {
+  if (!urls.length) return new Set();
+  const { data, error } = await db
+    .from("jobs")
+    .select("canonical_url")
+    .or(`user_id.is.null,user_id.eq.${userId}`)
+    .in("canonical_url", urls);
+  if (error) throw new Error(`Could not check existing roles: ${error.message}`);
+  return new Set((data ?? []).flatMap((row) => (row.canonical_url ? [row.canonical_url] : [])));
+}
+
+export type SaveJobResult = { status: "added"; jobId: string } | { status: "duplicate" } | { status: "failed"; error: string };
+
+/**
+ * Saves an extracted posting as one of the user's roles. A plain insert is used on purpose:
+ * PostgREST upserts cannot target the partial unique index on (user_id, canonical_url), so an
+ * existing posting surfaces as a unique-violation (23505) and is reported as a duplicate.
+ */
+export async function saveJobForUser(db: Db, userId: string, job: ExtractedJob, source: string): Promise<SaveJobResult> {
+  const { data, error } = await db
+    .from("jobs")
+    .insert({ ...job, external_reference: job.external_reference ?? null, user_id: userId, source })
+    .select("id")
+    .single();
+  if (error) return error.code === "23505" ? { status: "duplicate" } : { status: "failed", error: error.message };
+  return { status: "added", jobId: data.id };
 }
 
 export async function searchPublicJobs(query: string, limit = 6) {

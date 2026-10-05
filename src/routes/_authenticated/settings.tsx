@@ -41,9 +41,10 @@ function SettingsPage() {
   async function remove() {
     setBusy(true);
     try {
-      await deleteFn({ data: { confirm: "DELETE" } });
+      const result = await deleteFn({ data: { confirm: "DELETE" } });
       await supabase.auth.signOut();
       toast.success("Your account and data were deleted");
+      for (const note of result.notes) toast.warning(note, { duration: 15000 });
       navigate({ to: "/" });
     } catch (e) { toast.error(e instanceof Error ? e.message : "Deletion failed"); } finally { setBusy(false); }
   }
@@ -52,7 +53,7 @@ function SettingsPage() {
     <PageHeader title="Settings" sub="Your career data belongs to you." />
     <section className="rounded-md border bg-card p-5">
       <h2 className="font-display font-semibold">Download your data</h2>
-      <p className="mt-1 text-sm text-muted-foreground">One file with your profile, Career Vault, applications, history and agent activity.</p>
+      <p className="mt-1 text-sm text-muted-foreground">One file with your profile, Career Vault, applications, history, processed email records and agent activity.</p>
       <Button className="mt-4" onClick={download} disabled={busy}><Download />Download my data</Button>
     </section>
     <section className="mt-6 rounded-md border border-destructive/40 bg-card p-5">
