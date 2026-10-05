@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ArrowRight, BadgeCheck, MapPin, Plus, Target, BriefcaseBusiness, ShieldCheck, Bookmark, X, Link2, Mail, Building2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useJobs, useVault, useProfile, useSponsorSet, scoreJob, useInvalidate, useRoleDecisions, useSourceConnections, uid } from "@/lib/data";
+import { isUkRole, isVerifiedSponsorMatch } from "@/lib/scoring";
 import { PageHeader, ScoreRing } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +38,8 @@ function RadarPage() {
       (jobs.data ?? []).filter((job) => !decidedIds.has(job.id))
         .map((j) => {
           const sponsor = sponsors.data?.[j.company_name] ?? null;
-          return { job: j, sponsor, score: scoreJob(j, vault.data ?? [], profile.data, !!sponsor) };
+          const ukRole = isUkRole(j);
+          return { job: j, sponsor, ukRole, verifiedSponsor: isVerifiedSponsorMatch(sponsor?.similarity), score: scoreJob(j, vault.data ?? [], profile.data, sponsor?.similarity ?? null) };
         })
         .sort((a, b) => b.score.totalScore - a.score.totalScore),
     [jobs.data, vault.data, profile.data, sponsors.data, decidedIds],
@@ -63,7 +65,7 @@ function RadarPage() {
   return (
     <div>
       <PageHeader title="Discover" sub="Review verified opportunities and choose where to invest your time.">
-        <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={refreshing} onClick={async () => { setRefreshing(true); try { const result = await refreshDiscovery(); if (!result.ok) toast.error(result.error); else { toast.success(`${result.added} verified roles added from ${result.found} results`); invalidate("jobs", "source-connections"); } } catch (error) { toast.error(error instanceof Error ? error.message : "Discovery failed"); } finally { setRefreshing(false); } }}><RefreshCw className={refreshing ? "animate-spin" : ""} />Find roles now</Button><ImportJobDialog onAdded={() => invalidate("jobs")} /><AddJobDialog onAdded={() => invalidate("jobs")} /></div>
+        <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={refreshing} onClick={async () => { setRefreshing(true); try { const result = await refreshDiscovery(); if (!result.ok) toast.error(result.error); else { const extra = [result.duplicates ? `${result.duplicates} already in your inbox` : "", result.failed ? `${result.failed} could not be read` : ""].filter(Boolean).join(", "); toast[result.added || !result.failed ? "success" : "error"](`${result.added} new verified role${result.added === 1 ? "" : "s"} from ${result.found} results${extra ? ` (${extra})` : ""}`); invalidate("jobs", "source-connections"); } } catch (error) { toast.error(error instanceof Error ? error.message : "Discovery failed"); } finally { setRefreshing(false); } }}><RefreshCw className={refreshing ? "animate-spin" : ""} />Find roles now</Button><ImportJobDialog onAdded={() => invalidate("jobs")} /><AddJobDialog onAdded={() => invalidate("jobs")} /></div>
       </PageHeader>
       <details className="mb-7 border-y py-4">
         <summary className="cursor-pointer list-none text-sm font-medium">How roles reach your inbox <span className="ml-2 text-xs font-normal text-muted-foreground">Employer pages, public links, and your email alerts</span></summary>
@@ -82,16 +84,16 @@ function RadarPage() {
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <div className="flex items-center gap-3 rounded-md border bg-card px-4 py-3"><span className="grid size-9 place-items-center rounded-md bg-primary/12 text-primary"><BriefcaseBusiness className="size-4" /></span><div><p className="font-display text-xl font-semibold">{scored.length}</p><p className="text-xs text-muted-foreground">roles evaluated</p></div></div>
         <div className="flex items-center gap-3 rounded-md border bg-card px-4 py-3"><span className="grid size-9 place-items-center rounded-md bg-success/12 text-success"><Target className="size-4" /></span><div><p className="font-display text-xl font-semibold">{scored.filter((item) => item.score.totalScore >= 70).length}</p><p className="text-xs text-muted-foreground">strong matches</p></div></div>
-        <div className="flex items-center gap-3 rounded-md border bg-card px-4 py-3"><span className="grid size-9 place-items-center rounded-md bg-warning/12 text-warning"><ShieldCheck className="size-4" /></span><div><p className="font-display text-xl font-semibold">{scored.filter((item) => item.sponsor).length}</p><p className="text-xs text-muted-foreground">licensed sponsors</p></div></div>
+        <div className="flex items-center gap-3 rounded-md border bg-card px-4 py-3"><span className="grid size-9 place-items-center rounded-md bg-warning/12 text-warning"><ShieldCheck className="size-4" /></span><div><p className="font-display text-xl font-semibold">{scored.filter((item) => item.ukRole && item.verifiedSponsor).length}</p><p className="text-xs text-muted-foreground">licensed UK sponsors</p></div></div>
       </div>
-      {!vault.data?.length && !vault.isLoading && (
+      {!vault.isLoading && !vault.data?.some((item) => item.is_verified) && (
         <div className="mb-6 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
-          Your vault is empty, so scores are low. <Link to="/vault" className="text-primary underline">Add your experience</Link> to get real fit scores.
+          Fit scores only count verified evidence, and none is verified yet. <Link to="/vault" className="text-primary underline">Add or verify your experience</Link> to get real fit scores.
         </div>
       )}
       <div className="mb-3 flex items-center justify-between"><h2 className="font-display text-lg font-semibold">New for review</h2><span className="text-xs text-muted-foreground">{scored.length} undecided · highest fit first</span></div>
       <div className="grid gap-3">
-        {scored.map(({ job, sponsor, score }, index) => (
+        {scored.map(({ job, sponsor, ukRole, verifiedSponsor, score }, index) => (
           <div key={job.id} className="group rounded-md border bg-card p-5 surface-lift transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40">
             <div className="flex gap-4">
               <span className="hidden w-6 pt-1 font-mono text-[10px] text-muted-foreground sm:block">{String(index + 1).padStart(2, '0')}</span>
@@ -104,8 +106,12 @@ function RadarPage() {
                   <span>{new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(Math.round((new Date(job.discovered_at).getTime() - Date.now()) / 86_400_000), "day")}</span>
                   <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{job.location}{job.is_remote ? " · Remote" : ""}</span>
                   {job.salary_range && <span>{job.salary_range}</span>}
-                  {sponsor ? (
+                  {!ukRole ? (
+                    <Badge variant="outline" className="text-muted-foreground">Outside UK · sponsor check n/a</Badge>
+                  ) : verifiedSponsor ? (
                     <Badge className="gap-1 bg-success/15 text-success hover:bg-success/15"><BadgeCheck className="h-3 w-3" />Licensed sponsor</Badge>
+                  ) : sponsor ? (
+                    <Badge variant="outline" className="text-warning" title={`Closest register entry: ${sponsor.organisation_name}`}>Possible sponsor · confirm name</Badge>
                   ) : (
                     <Badge variant="outline" className="text-muted-foreground">No sponsor match</Badge>
                   )}

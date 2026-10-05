@@ -36,6 +36,17 @@ export async function refreshSponsorRegister() {
   const csv = await fetch(csvUrl).then((r) => { if (!r.ok) throw new Error(`Register download failed (${r.status})`); return r.text(); });
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(csv));
   const checksum = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  // Checksums are unique. The same file may already be active under an older URL, or left
+  // behind by a failed or interrupted import; clear the latter so a retry can run.
+  const { data: sameFile } = await db.from("sponsor_snapshots").select("id,status").eq("checksum", checksum).maybeSingle();
+  if (sameFile?.status === "active") {
+    await db.from("sponsor_snapshots").update({ attachment_url: csvUrl, source_updated_at: meta.public_updated_at ?? null }).eq("id", sameFile.id);
+    return { updated: false as const, reason: "Already using the latest official register." };
+  }
+  if (sameFile) {
+    const { error: clearError } = await db.from("sponsor_snapshots").delete().eq("id", sameFile.id);
+    if (clearError) throw new Error(`Could not clear the earlier attempt: ${clearError.message}`);
+  }
   const [header = [], ...body] = parseCsv(csv);
   const col = (name: RegExp) => header.findIndex((h) => name.test(h));
   const iName = col(/organisation/i), iTown = col(/town/i), iCounty = col(/county/i), iType = col(/type/i), iRoute = col(/route/i);

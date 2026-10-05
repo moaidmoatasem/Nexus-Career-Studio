@@ -1,13 +1,18 @@
 import { AiError } from "@/lib/ai.server";
 import { classifyRecruitmentEmail } from "@/lib/email-classifier.server";
+import { jobLinks, mailSourceKind, matchApplication } from "@/lib/mailMatch";
+import { isSubmittedStage, nextStageFromEmail, stageForEmail } from "@/lib/stages";
 import { callAsAppUser, reconnectRequired } from "@/integrations/lovable/appUserConnector.server";
 import { getConnectionKeyForUser } from "./appUserConnections.server";
 
 const CONNECTOR_ID = "google_mail";
 export const GMAIL_SCOPES = ["https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/gmail.readonly"];
+/** Classifier confidence required before an email may change an application. */
+const MIN_CLASSIFIER_CONFIDENCE = 0.75;
 
 type GmailPart = { mimeType?: string; headers?: Array<{ name: string; value: string }>; body?: { data?: string }; parts?: GmailPart[] };
 type GmailMessage = { id: string; historyId?: string; internalDate?: string; snippet?: string; payload?: GmailPart };
+type AppRow = { id: string; job_id: string; status: string; applied_at: string | null; jobs: { company_name: string; title: string } | null };
 
 function header(message: GmailMessage, name: string) { return message.payload?.headers?.find((item) => item.name.toLowerCase() === name.toLowerCase())?.value ?? ""; }
 function decodeBase64Url(data: string) {
@@ -21,42 +26,13 @@ function bodyText(part?: GmailPart): string {
   return part.body?.data ? decodeBase64Url(part.body.data) : "";
 }
 
-function alertKind(sender: string, subject: string) {
-  const value = `${sender} ${subject}`.toLowerCase();
-  if (value.includes("linkedin")) return "linkedin_alert" as const;
-  if (value.includes("indeed")) return "indeed_alert" as const;
-  if (value.includes("workday") || value.includes("myworkday")) return "workday_alert" as const;
-  return "recruiter" as const;
-}
-
-function publicLinks(text: string) {
-  const matches = text.match(/https?:\/\/[^\s<>"')]+/g) ?? [];
-  return [...new Set(matches.map((value) => value.replace(/[.,;]+$/, "")))].filter((value) => {
-    try {
-      const host = new URL(value).hostname.toLowerCase();
-      return ["linkedin.com", "indeed.com", "myworkdayjobs.com", "greenhouse.io", "lever.co", "ashbyhq.com"].some((domain) => host.includes(domain));
-    } catch { return false; }
-  }).slice(0, 3);
-}
-
-function applicationMatchScore(app: { id: string; job_id: string; created_at: string; jobs: { company_name: string; title: string } | null }, classification: { company_name: string }, subject: string, sender: string) {
-  if (!app.jobs) return { score: 0, reason: "" };
-  const company = classification.company_name.toLowerCase();
-  const appCompany = app.jobs.company_name.toLowerCase();
-  const title = app.jobs.title.toLowerCase();
-  const haystack = `${subject} ${sender}`.toLowerCase();
-  let score = 0; const reasons: string[] = [];
-  if (company && (appCompany.includes(company) || company.includes(appCompany))) { score += 0.55; reasons.push("company"); }
-  if (title.split(/\W+/).filter((word) => word.length > 4).some((word) => haystack.includes(word))) { score += 0.25; reasons.push("role title"); }
-  if (haystack.includes(appCompany.split(/\W+/)[0] ?? "")) { score += 0.2; reasons.push("sender or subject"); }
-  return { score, reason: reasons.join(", ") };
-}
-
 export async function registerGmailWatch(userId: string) {
   const key = await getConnectionKeyForUser(userId, CONNECTOR_ID);
   if (!key) throw new Error("Connect Gmail before enabling inbox updates.");
   const topicName = process.env['GMAIL_PUBSUB_TOPIC'];
   if (!topicName) return { enabled: false as const, reason: "Google push notifications are not configured yet." };
+  // The push endpoint rejects every notification without this, so don't start a watch that can't be delivered.
+  if (!process.env['GMAIL_PUBSUB_SERVICE_ACCOUNT']) return { enabled: false as const, reason: "Google push notifications need GMAIL_PUBSUB_SERVICE_ACCOUNT on the server." };
   const response = await callAsAppUser(key, "/gmail/v1/users/me/watch", GMAIL_SCOPES, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topicName, labelIds: ["INBOX"], labelFilterBehavior: "include" }) });
   const text = await response.text();
   if (!response.ok) throw new Error(`Gmail notifications could not start (${response.status}): ${text.slice(0, 300)}`);
@@ -74,13 +50,20 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
   if (state?.status === "paused") return { ok: false as const, reconnectRequired: false, error: state.status };
   if (state?.lease_expires_at && new Date(state.lease_expires_at) > new Date()) return { ok: true as const, checked: 0, processed: 0, matched: 0 };
   await supabaseAdmin.from("gmail_sync_state").upsert({ user_id: userId, status: "syncing", lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString() }, { onConflict: "user_id" });
+  // Releases the lease and flags the connection so the UI shows "Reconnect needed" instead of "Syncing".
+  const needsReconnect = async () => {
+    const message = "Reconnect Gmail to continue.";
+    await supabaseAdmin.from("gmail_sync_state").upsert({ user_id: userId, status: "needs_attention", last_error: message, lease_expires_at: null }, { onConflict: "user_id" });
+    await supabaseAdmin.from("source_connections").upsert({ user_id: userId, source: "gmail", enabled: true, status: "needs_attention", last_error: message }, { onConflict: "user_id,source" });
+    return { ok: false as const, reconnectRequired: true, error: message };
+  };
   try {
     let ids: string[] = [];
     let newestHistory = state?.history_id ?? null;
     if (state?.history_id) {
       const history = await callAsAppUser(key, `/gmail/v1/users/me/history?startHistoryId=${encodeURIComponent(state.history_id)}&historyTypes=messageAdded&labelId=INBOX&maxResults=${maxMessages}`, GMAIL_SCOPES);
       if (history.status !== 404) {
-        if (await reconnectRequired(history)) return { ok: false as const, reconnectRequired: true, error: "Reconnect Gmail to continue." };
+        if (await reconnectRequired(history)) return await needsReconnect();
         if (!history.ok) throw new Error(`Gmail history check failed (${history.status}).`);
         const body = await history.json() as { historyId?: string; history?: Array<{ messagesAdded?: Array<{ message?: { id?: string } }> }> };
         ids = [...new Set((body.history ?? []).flatMap((entry) => entry.messagesAdded ?? []).flatMap((entry) => entry.message?.id ? [entry.message.id] : []))].slice(0, maxMessages);
@@ -90,7 +73,7 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
     if (!state?.history_id || !newestHistory || ids.length === 0) {
       const query = 'newer_than:30d {application interview recruiter screening assessment offer rejection "next steps" "job alert"} -category:promotions';
       const list = await callAsAppUser(key, `/gmail/v1/users/me/messages?maxResults=${maxMessages}&q=${encodeURIComponent(query)}`, GMAIL_SCOPES);
-      if (await reconnectRequired(list)) return { ok: false as const, reconnectRequired: true, error: "Reconnect Gmail to continue." };
+      if (await reconnectRequired(list)) return await needsReconnect();
       if (!list.ok) throw new Error(`Gmail inbox check failed (${list.status}).`);
       const body = await list.json() as { messages?: Array<{ id: string }> };
       ids = (body.messages ?? []).map((item) => item.id);
@@ -100,7 +83,8 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
     const { data: seenRows } = ids.length ? await supabaseAdmin.from("processed_mail_messages").select("provider_message_id").eq("user_id", userId).eq("provider", "gmail").in("provider_message_id", ids) : { data: [] };
     const seen = new Set((seenRows ?? []).map((row) => row.provider_message_id));
     const fresh = ids.filter((id) => !seen.has(id)).slice(0, maxMessages);
-    const { data: apps } = await supabaseAdmin.from("applications").select("id,job_id,created_at,jobs(company_name,title)").eq("user_id", userId);
+    const { data: appRows } = await supabaseAdmin.from("applications").select("id,job_id,status,applied_at,jobs(company_name,title)").eq("user_id", userId);
+    const apps = (appRows ?? []) as AppRow[];
     let processed = 0; let matched = 0;
     for (const id of fresh) {
       const response = await callAsAppUser(key, `/gmail/v1/users/me/messages/${id}?format=full&fields=id,historyId,internalDate,snippet,payload`, GMAIL_SCOPES);
@@ -108,34 +92,42 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
       const message = await response.json() as GmailMessage;
       const sender = header(message, "From"); const subject = header(message, "Subject"); const body = (bodyText(message.payload) || message.snippet || "").slice(0, 20_000);
       if (body.length < 5) continue;
-      const kind = alertKind(sender, subject);
+      const receivedAt = message.internalDate ? new Date(Number(message.internalDate)).toISOString() : null;
+      const kind = mailSourceKind(sender, subject);
       const classification = await classifyRecruitmentEmail({ sender, subject, body });
       let alertJobsAdded = 0;
       if (kind !== "recruiter") {
-        const { extractPublicJob } = await import("@/lib/discovery.server");
-        for (const url of publicLinks(body)) {
+        const source = kind.replace("_alert", "");
+        const { canonicalizeJobUrl, extractPublicJob, knownJobUrls, saveJobForUser } = await import("@/lib/discovery.server");
+        const links = [...new Set(jobLinks(body).flatMap((url) => { try { return [canonicalizeJobUrl(url)]; } catch { return []; } }))];
+        const known = await knownJobUrls(supabaseAdmin, userId, links).catch(() => new Set<string>());
+        for (const url of links.filter((u) => !known.has(u))) {
           try {
-            const extracted = await extractPublicJob(url);
-            const { data: inserted, error } = await supabaseAdmin.from("jobs").upsert({ ...extracted, external_reference: extracted.external_reference ?? null, user_id: userId, source: kind.replace("_alert", "") }, { onConflict: "user_id,canonical_url", ignoreDuplicates: true }).select("id").maybeSingle();
-            if (!error && inserted) alertJobsAdded += 1;
+            const saved = await saveJobForUser(supabaseAdmin, userId, await extractPublicJob(url), source);
+            if (saved.status === "added") alertJobsAdded += 1;
+            else if (saved.status === "failed") console.error("Alert role could not be saved", saved.error);
           } catch { /* Private, expired, or blocked alert links are not imported. */ }
         }
-        await supabaseAdmin.from("source_connections").upsert({ user_id: userId, source: kind.replace("_alert", ""), enabled: true, status: "ready", last_synced_at: new Date().toISOString(), last_error: null }, { onConflict: "user_id,source" });
-        if (alertJobsAdded > 0) await supabaseAdmin.from("application_events").insert({ user_id: userId, event_type: "roles_discovered", title: `${alertJobsAdded} verified role${alertJobsAdded === 1 ? "" : "s"} imported from ${kind.replace("_alert", "")}`, source: "gmail" });
+        await supabaseAdmin.from("source_connections").upsert({ user_id: userId, source, enabled: true, status: "ready", last_synced_at: new Date().toISOString(), last_error: null }, { onConflict: "user_id,source" });
+        if (alertJobsAdded > 0) await supabaseAdmin.from("application_events").insert({ user_id: userId, event_type: "roles_discovered", title: `${alertJobsAdded} verified role${alertJobsAdded === 1 ? "" : "s"} imported from ${source}`, source: "gmail" });
       }
-      const candidates = (apps ?? []).map((app) => ({ app, ...applicationMatchScore(app as { id: string; job_id: string; created_at: string; jobs: { company_name: string; title: string } | null }, classification, subject, sender) })).sort((a, b) => b.score - a.score);
-      const best = candidates[0]; const nextBest = candidates[1];
-      const confident = kind === "recruiter" && classification.confidence >= 0.75 && best && best.score >= 0.7 && (!nextBest || best.score - nextBest.score >= 0.15);
-      const statusMap: Record<string, string | null> = { applied_ack: "applied", screening: "screening", interview_invite: "interviewing", offer: "offered", rejection: "rejected", action_required: null, informational: null };
-      if (confident) {
-        const next = statusMap[classification.status];
-        await supabaseAdmin.from("applications").update({ ...(next ? { status: next } : {}), last_email_status: classification.status, next_action: classification.action_summary, updated_at: new Date().toISOString() }).eq("id", best.app.id).eq("user_id", userId);
-        await supabaseAdmin.from("application_events").insert({ user_id: userId, application_id: best.app.id, job_id: best.app.job_id, event_type: "email_classified", title: "Recruitment email updated application", detail: `${classification.company_name}: ${classification.action_summary} · matched by ${best.reason}`, source: "gmail" });
+      const match = kind === "recruiter" ? matchApplication(apps, { companyName: classification.company_name, subject, sender, body }) : null;
+      const confident = Boolean(match?.app) && classification.confidence >= MIN_CLASSIFIER_CONFIDENCE;
+      const app = confident ? match?.app ?? null : null;
+      if (app) {
+        const next = nextStageFromEmail(app.status, stageForEmail(classification.status));
+        const now = new Date().toISOString();
+        const appliedAt = next && isSubmittedStage(next) && !app.applied_at ? receivedAt ?? now : null;
+        await supabaseAdmin.from("applications").update({ ...(next ? { status: next } : {}), ...(appliedAt ? { applied_at: appliedAt } : {}), last_email_status: classification.status, next_action: classification.action_summary, updated_at: now }).eq("id", app.id).eq("user_id", userId);
+        if (next) { app.status = next; if (appliedAt) app.applied_at = appliedAt; }
+        const stageNote = next ? `moved to ${next}` : `stage kept at ${app.status}`;
+        await supabaseAdmin.from("application_events").insert({ user_id: userId, application_id: app.id, job_id: app.job_id, event_type: "email_classified", title: "Recruitment email updated application", detail: `${classification.company_name}: ${classification.action_summary} · ${stageNote} · matched by ${match?.reason ?? "employer and role"}`, source: "gmail" });
         matched += 1;
       } else if (kind === "recruiter") {
-        await supabaseAdmin.from("unmatched_mail_messages").upsert({ user_id: userId, provider: "gmail", provider_message_id: id, sender, subject, received_at: message.internalDate ? new Date(Number(message.internalDate)).toISOString() : null, classification: classification.status, company_name: classification.company_name, action_summary: classification.action_summary, match_reason: best?.reason || "No confident application match" }, { onConflict: "user_id,provider,provider_message_id" });
+        const reason = match?.app ? `Classifier confidence ${Math.round(classification.confidence * 100)}% is below the automatic-update bar` : match?.reason ?? "No confident application match";
+        await supabaseAdmin.from("unmatched_mail_messages").upsert({ user_id: userId, provider: "gmail", provider_message_id: id, sender, subject, received_at: receivedAt, classification: classification.status, company_name: classification.company_name, action_summary: classification.action_summary, match_reason: reason }, { onConflict: "user_id,provider,provider_message_id" });
       }
-      await supabaseAdmin.from("processed_mail_messages").upsert({ user_id: userId, provider: "gmail", provider_message_id: id, application_id: confident ? best.app.id : null, classification: classification.status, matched: Boolean(confident), sender, subject, received_at: message.internalDate ? new Date(Number(message.internalDate)).toISOString() : null, source_kind: kind, confidence: classification.confidence, company_name: classification.company_name, action_summary: kind === "recruiter" ? classification.action_summary : `${alertJobsAdded} verified posting${alertJobsAdded === 1 ? "" : "s"} imported`, match_reason: confident ? best.reason : null, provider_history_id: message.historyId ?? null, processed_at: new Date().toISOString() }, { onConflict: "user_id,provider,provider_message_id" });
+      await supabaseAdmin.from("processed_mail_messages").upsert({ user_id: userId, provider: "gmail", provider_message_id: id, application_id: app?.id ?? null, classification: classification.status, matched: Boolean(app), sender, subject, received_at: receivedAt, source_kind: kind, confidence: classification.confidence, company_name: classification.company_name, action_summary: kind === "recruiter" ? classification.action_summary : `${alertJobsAdded} verified posting${alertJobsAdded === 1 ? "" : "s"} imported`, match_reason: app ? match?.reason ?? null : null, provider_history_id: message.historyId ?? null, processed_at: new Date().toISOString() }, { onConflict: "user_id,provider,provider_message_id" });
       newestHistory = message.historyId ?? newestHistory; processed += 1;
     }
     const now = new Date().toISOString();

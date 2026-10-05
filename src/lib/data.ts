@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { calculateFitScore, type ScoreBreakdown } from "./scoring";
+import { scoreRole, type ScoreBreakdown } from "./scoring";
 import type { ProvenanceViolation, TailoredBullet } from "./provenance";
 
 export type Job = Tables<"jobs">;
@@ -142,16 +142,9 @@ export function useInvalidate() {
   return (...keys: string[]) => keys.forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
 }
 
-export function scoreJob(job: Job, vault: VaultItem[], profile: Profile | undefined, sponsored: boolean) {
-  return calculateFitScore(
-    {
-      skills: vault.flatMap((v) => v.skills),
-      years: profile?.years_experience ?? 0,
-      domains: profile?.target_domains ?? [],
-      requiresVisa: profile?.requires_visa ?? false,
-    },
-    { requiredSkills: job.required_skills, preferredSkills: job.preferred_skills, minYearsExp: job.min_years_exp, domain: job.domain, sponsorVerified: sponsored },
-  );
+/** Same scoring path as server-side packs: verified vault items only, UK register only for UK roles. */
+export function scoreJob(job: Job, vault: VaultItem[], profile: Profile | undefined, sponsorSimilarity: number | null) {
+  return scoreRole({ vault, profile, job, sponsorSimilarity });
 }
 
 export { uid };

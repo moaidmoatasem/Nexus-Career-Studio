@@ -2,20 +2,27 @@ import { createFileRoute } from "@tanstack/react-router";
 
 type PushEnvelope = { message?: { data?: string; messageId?: string }; subscription?: string };
 
-async function verifyGoogleIdentity(request: Request) {
+/**
+ * Accepts only Google-signed OIDC tokens issued to the configured push service account.
+ * Fails closed: without GMAIL_PUBSUB_SERVICE_ACCOUNT any Google service account could mint
+ * a token for this audience and trigger paid inbox syncs.
+ */
+async function verifyGoogleIdentity(request: Request, expectedEmail: string) {
   const token = /^Bearer (.+)$/.exec(request.headers.get("authorization") ?? "")?.[1];
   if (!token) return false;
   const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`);
   if (!response.ok) return false;
-  const claims = await response.json() as { aud?: string; email?: string; email_verified?: string };
+  const claims = await response.json() as { aud?: string; email?: string; email_verified?: string; iss?: string };
   const audience = process.env['GMAIL_PUBSUB_AUDIENCE'] ?? new URL(request.url).origin + new URL(request.url).pathname;
-  const expectedEmail = process.env['GMAIL_PUBSUB_SERVICE_ACCOUNT'];
-  return claims.aud === audience && claims.email_verified === "true" && (!expectedEmail || claims.email === expectedEmail);
+  const issuerOk = claims.iss === "https://accounts.google.com" || claims.iss === "accounts.google.com";
+  return issuerOk && claims.aud === audience && claims.email_verified === "true" && claims.email === expectedEmail;
 }
 
 export const Route = createFileRoute("/api/public/gmail-push")({
   server: { handlers: { POST: async ({ request }) => {
-    if (!(await verifyGoogleIdentity(request))) return new Response("Unauthorized", { status: 401 });
+    const expectedEmail = process.env['GMAIL_PUBSUB_SERVICE_ACCOUNT'];
+    if (!expectedEmail) return new Response("Gmail push is not configured: set GMAIL_PUBSUB_SERVICE_ACCOUNT", { status: 503 });
+    if (!(await verifyGoogleIdentity(request, expectedEmail))) return new Response("Unauthorized", { status: 401 });
     const envelope = await request.json().catch(() => null) as PushEnvelope | null;
     if (!envelope?.message?.data) return new Response("Invalid notification", { status: 400 });
     let emailAddress = "";

@@ -92,12 +92,14 @@ export async function downloadDocx(m: ResumeModel, p: AtsProfile) {
 
 export function downloadProvenanceReport(m: ResumeModel, pack: TailoredPack, vault: { id: string; title: string; organization: string; metrics: string[] }[]) {
   const byId = new Map(vault.map((v) => [v.id, v]));
-  const lines = [`# Fact-check report — ${nfc(m.name)}`, `Generated ${new Date(pack.generatedAt).toLocaleString()}`, `Status: ${pack.provenanceValid ? "every line traced to your Career Vault" : "some lines were removed because they could not be verified"}`, ""];
+  const lines = [`# Fact-check report — ${nfc(m.name)}`, `Generated ${new Date(pack.generatedAt).toLocaleString()}`, `Status: ${pack.provenanceValid ? "every number and metric traced to your verified Career Vault" : "some lines were removed because they could not be verified"}`, ""];
   pack.bullets.forEach((b, i) => {
     const src = byId.get(b.vault_item_id);
     lines.push(`## Line ${i + 1}`, `"${nfc(b.tailored_text)}"`, `Source: ${src ? `${src.title}${src.organization ? `, ${src.organization}` : ""}` : "unknown"}`, `Numbers used: ${b.verified_metrics.join("; ") || "none"}`, `Skills matched: ${b.aligned_skills.join(", ") || "none"}`, "");
   });
-  if (pack.rejected.length) { lines.push("## Removed (could not be verified)"); pack.rejected.forEach((r) => lines.push(`- Line ${r.bulletIndex + 1}: ${r.detail}`)); }
+  const where = (r: TailoredPack["rejected"][number]) =>
+    r.scope === "cover_letter" ? `Cover letter, sentence ${r.bulletIndex + 1}` : r.scope === "recruiter_outreach" ? `Recruiter note, sentence ${r.bulletIndex + 1}` : `Line ${r.bulletIndex + 1}`;
+  if (pack.rejected.length) { lines.push("## Removed (could not be verified)"); pack.rejected.forEach((r) => lines.push(`- ${where(r)}: ${r.detail}`)); }
   save(new Blob([lines.join("\n")], { type: "text/markdown" }), `${fileBase(m.name)}-fact-check.md`);
 }
 

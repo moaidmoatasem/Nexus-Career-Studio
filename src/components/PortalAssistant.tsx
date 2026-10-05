@@ -33,6 +33,7 @@ export function PortalAssistant({ url, coverLetter, applicationId, description }
   async function queuePortal() {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user || !applicationId || !url) return;
+    if (!url.startsWith("https://")) { toast.error("The browser helper only opens secure (https) posting links."); return; }
     const { error } = await supabase.from("portal_tasks").insert({ user_id: auth.user.id, application_id: applicationId, portal_url: url, adapter: detectPortal(url).id });
     if (error) toast.error(error.message); else { toast.success("Queued for the browser helper on your server"); qc.invalidateQueries({ queryKey: ["portal-task", applicationId] }); }
   }
@@ -40,11 +41,13 @@ export function PortalAssistant({ url, coverLetter, applicationId, description }
   const vault = useVault();
   const portal = detectPortal(url);
   const [first = "", ...rest] = (profile.data?.full_name ?? "").split(" ");
-  const current = (vault.data ?? []).find((v) => v.category === "experience" && v.is_current) ?? (vault.data ?? []).find((v) => v.category === "experience");
+  // "Verified fields" means exactly that: only Career Vault items the candidate has verified.
+  const verified = (vault.data ?? []).filter((v) => v.is_verified);
+  const current = verified.find((v) => v.category === "experience" && v.is_current) ?? verified.find((v) => v.category === "experience");
   const fields = [
     ["First name", first], ["Last name", rest.join(" ")], ["Headline", profile.data?.headline ?? ""],
     ["Current title", current?.title ?? ""], ["Current employer", current?.organization ?? ""],
-    ["Skills", Array.from(new Set((vault.data ?? []).flatMap((v) => v.skills))).slice(0, 15).join(", ")],
+    ["Skills", Array.from(new Set(verified.flatMap((v) => v.skills))).slice(0, 15).join(", ")],
     ...(coverLetter ? [["Cover letter", coverLetter]] : []),
   ].filter(([, v]) => v) as [string, string][];
 

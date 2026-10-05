@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useApplications, useUnmatchedMail } from "@/lib/data";
+import { sameCompany } from "@/lib/mailMatch";
 import { Button } from "@/components/ui/button";
 
 export function ReviewQueue() {
@@ -20,7 +21,10 @@ export function ReviewQueue() {
   const ready = all.filter((a) => a.status === "tailored");
   const followUps = all.filter((a) => a.next_action?.startsWith("Follow up"));
   const titleOf = (id: string) => { const a = all.find((x) => x.id === id); return a?.jobs ? `${a.jobs.title} · ${a.jobs.company_name}` : "Application"; };
-  const suggest = (company: string | null) => all.find((a) => company && a.jobs?.company_name.toLowerCase().includes(company.toLowerCase().split(" ")[0] ?? ""))?.id;
+  const suggest = (company: string | null) => {
+    const sameEmployer = all.filter((a) => company && a.jobs && sameCompany(a.jobs.company_name, company));
+    return sameEmployer.length === 1 ? sameEmployer[0]?.id : undefined;
+  };
 
   async function link(m: { id: string; subject: string; action_summary: string | null }, appId: string) {
     const { data: auth } = await supabase.auth.getUser();

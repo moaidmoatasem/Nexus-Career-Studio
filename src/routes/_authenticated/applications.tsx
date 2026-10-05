@@ -106,7 +106,7 @@ function EmailTriage({ onDone }: { onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ sender: "", subject: "", body: "" });
   const [busy, setBusy] = useState(false);
-  const [res, setRes] = useState<(EmailClassification & { movedApplicationId: string | null }) | null>(null);
+  const [res, setRes] = useState<(EmailClassification & { movedApplicationId: string | null; matchNote: string }) | null>(null);
   const run = useServerFn(classifyEmail);
   async function go() {
     setBusy(true);
@@ -131,12 +131,13 @@ function EmailTriage({ onDone }: { onDone: () => void }) {
           <Input placeholder="Subject" value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} />
           <Textarea rows={8} placeholder="Email body" value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} />
           <Button onClick={go} disabled={busy || f.body.length < 5}>{busy ? "Classifying…" : "Classify & update board"}</Button>
+          <p className="text-xs text-muted-foreground">An application only moves when the email names both the employer and the role, and never moves backwards.</p>
           {res && (
             <div className="rounded-md border bg-secondary/40 p-3 text-sm">
               <p><Badge className="font-mono">{res.status}</Badge> <span className="ms-2 text-muted-foreground">{res.company_name} · {Math.round(res.confidence * 100)}%</span></p>
               <p className="mt-2">{res.action_summary}</p>
               {res.scheduling_url && <a className="mt-1 block text-primary underline" href={res.scheduling_url} target="_blank" rel="noreferrer">Scheduling link</a>}
-              <p className="mt-2 text-xs text-muted-foreground">{res.movedApplicationId ? "Matching application updated." : "No matching application found."}</p>
+              <p className="mt-2 text-xs text-muted-foreground">{res.matchNote}</p>
             </div>
           )}
         </div>

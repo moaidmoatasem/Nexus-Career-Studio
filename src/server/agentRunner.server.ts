@@ -89,7 +89,7 @@ export function checkConfiguration() {
     ai: has("LOVABLE_API_KEY"),
     jobLinkReading: has("FIRECRAWL_API_KEY"),
     gmail: has("GOOGLE_MAIL_APP_USER_CONNECTOR_CLIENT_API_KEY") && has("APP_USER_CONNECTION_KEY_SECRET"),
-    gmailLiveUpdates: has("GMAIL_PUBSUB_TOPIC"),
+    gmailLiveUpdates: has("GMAIL_PUBSUB_TOPIC") && has("GMAIL_PUBSUB_SERVICE_ACCOUNT"),
     scheduler: has("AGENT_TICK_SECRET"),
   };
 }

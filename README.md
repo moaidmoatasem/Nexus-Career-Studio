@@ -37,7 +37,7 @@ The app expects a Lovable Cloud-compatible database and authentication configura
 - `LOVABLE_API_KEY` for AI and connector requests
 - `FIRECRAWL_API_KEY` for public job extraction
 - `GOOGLE_MAIL_APP_USER_CONNECTOR_CLIENT_API_KEY` for per-user Gmail consent
-- `APP_USER_CONNECTION_KEY_SECRET` for encrypted Gmail connection handles
+- `APP_USER_CONNECTION_KEY_SECRET` for encrypted Gmail connection handles (`openssl rand -base64 32`)
 
 The Gmail OAuth application must allow this redirect URI:
 
@@ -51,7 +51,7 @@ Manual **Check inbox now** works without background infrastructure. Automatic up
 
 - `GMAIL_PUBSUB_TOPIC`
 - `GMAIL_PUBSUB_AUDIENCE`
-- `GMAIL_PUBSUB_SERVICE_ACCOUNT`
+- `GMAIL_PUBSUB_SERVICE_ACCOUNT` (required: the push endpoint rejects notifications without it)
 - A Google Pub/Sub push subscription targeting `/api/public/gmail-push`
 
 Gmail access is read-only. Per-user connection handles are encrypted in the database and never sent to the browser.
@@ -66,6 +66,11 @@ Gmail access is read-only. Per-user connection handles are encrypted in the data
 ## Data ownership
 
 Career evidence, applications, and mailbox-derived records are scoped to the signed-in user. Deployment owners should define retention, backup, export, and account-deletion practices before inviting others.
+
+## Lovable services
+
+AI, Gmail, Firecrawl extraction and Google sign-in currently run through Lovable-hosted services. See
+[DEPLOY.md](DEPLOY.md#lovable-services-this-build-still-uses) for what that means for a self-hosted install.
 
 ## Stack
 

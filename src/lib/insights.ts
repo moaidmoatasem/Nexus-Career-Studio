@@ -2,9 +2,11 @@
 export interface AppLite { id: string; status: string; created_at: string; applied_at: string | null; job: { source: string; required_skills: string[] } | null; profile?: string | null }
 export interface EventLite { application_id: string | null; event_type: string; created_at: string }
 
-const RESPONSE_EVENTS = new Set(["recruiter_response", "screening", "interview", "offer", "rejected", "email_update", "email_classified", "assessment"]);
+const RESPONSE_EVENTS = new Set(["recruiter_response", "screening", "interview", "offer", "rejected", "email_update", "email_classified", "email_linked", "assessment"]);
 const STAGES = ["saved", "applied", "response", "interview", "offer"] as const;
-const ORDER: Record<string, number> = { queued: 0, saved: 0, tailored: 0, applied: 1, screening: 2, response: 2, rejected: 2, interview: 3, offer: 4 };
+// Keys are the application statuses stored in the database (see the applications status check),
+// plus the funnel's own stage names.
+const ORDER: Record<string, number> = { queued: 0, saved: 0, tailored: 0, applied: 1, screening: 2, response: 2, rejected: 2, interviewing: 3, interview: 3, offered: 4, offer: 4 };
 
 export function funnel(apps: AppLite[]) {
   return STAGES.map((stage, i) => ({ stage, count: apps.filter((a) => (ORDER[a.status] ?? 0) >= i).length }));
