@@ -1,10 +1,11 @@
+/** Waits for the Google consent popup to hand back its authorization code and signed state. */
 export function waitForGmailOAuth(popup: Window) {
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<{ code: string; state: string }>((resolve, reject) => {
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.source !== popup || event.data?.connectorId !== "google_mail") return;
       if (event.data?.type !== "appUserConnectorOAuthComplete" && event.data?.type !== "appUserConnectorOAuthFailed") return;
       cleanup();
-      if (event.data.type === "appUserConnectorOAuthComplete" && typeof event.data.code === "string") resolve(event.data.code);
+      if (event.data.type === "appUserConnectorOAuthComplete" && typeof event.data.code === "string" && typeof event.data.state === "string") resolve({ code: event.data.code, state: event.data.state });
       else reject(new Error("Gmail connection did not complete."));
     };
     window.addEventListener("message", onMessage);

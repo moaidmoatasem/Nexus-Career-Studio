@@ -20,41 +20,29 @@ An open-source, self-hosted career workspace for evidence-led job discovery, ass
 6. Complete the official employer portal and confirm submission.
 7. Track confident recruitment updates from Gmail; manually review ambiguous messages.
 
-## Local development
+## Run it yourself
 
-Use Node.js 20+ and Bun:
+Nexus is standalone: it needs a Supabase project (free tier, or self-hosted) and, optionally, the AI, Firecrawl and
+Google accounts you choose. No Lovable account or service is required.
 
 ```sh
 git clone https://github.com/moaidmoatasem/Nexus-Career-Studio.git
 cd Nexus-Career-Studio
-bun install
-bun run dev
+cp .env.example .env      # fill in Supabase, then whichever integrations you want
+docker compose up -d --build
 ```
 
-The app expects a Lovable Cloud-compatible database and authentication configuration. Never commit credentials. Configure these server-side values in your deployment environment:
+For development, use Node.js 20+ and Bun: `bun install` then `bun run dev`.
+[DEPLOY.md](DEPLOY.md) walks through the database, AI provider, Gmail and Firecrawl setup step by step.
 
-- Database URL and publishable/server credentials
-- `LOVABLE_API_KEY` for AI and connector requests
-- `FIRECRAWL_API_KEY` for public job extraction
-- `GOOGLE_MAIL_APP_USER_CONNECTOR_CLIENT_API_KEY` for per-user Gmail consent
-- `APP_USER_CONNECTION_KEY_SECRET` for encrypted Gmail connection handles (`openssl rand -base64 32`)
+| Integration | Settings | Without it |
+|---|---|---|
+| AI — any OpenAI-compatible API (OpenAI, OpenRouter, Gemini, Ollama…) | `AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY` | Add Career Vault items by hand; the ATS resume still works |
+| Job-page reading — Firecrawl, hosted or self-hosted | `FIRECRAWL_API_KEY` or `FIRECRAWL_API_URL` | Add roles by hand |
+| Gmail — your own Google OAuth client, read-only | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_USER_CONNECTION_KEY_SECRET` | Paste recruiter emails by hand |
+| Automatic Gmail updates — Google Pub/Sub | `GMAIL_PUBSUB_TOPIC`, `GMAIL_PUBSUB_SERVICE_ACCOUNT` | The agent checks the inbox on its schedule |
 
-The Gmail OAuth application must allow this redirect URI:
-
-```text
-https://connector-gateway.lovable.dev/api/v1/app-users/oauth2/callback
-```
-
-## Optional automatic Gmail updates
-
-Manual **Check inbox now** works without background infrastructure. Automatic updates additionally require:
-
-- `GMAIL_PUBSUB_TOPIC`
-- `GMAIL_PUBSUB_AUDIENCE`
-- `GMAIL_PUBSUB_SERVICE_ACCOUNT` (required: the push endpoint rejects notifications without it)
-- A Google Pub/Sub push subscription targeting `/api/public/gmail-push`
-
-Gmail access is read-only. Per-user connection handles are encrypted in the database and never sent to the browser.
+Gmail access is read-only. Each user's refresh token is encrypted in the database and never sent to the browser.
 
 ## Cost-conscious operation
 
@@ -67,15 +55,11 @@ Gmail access is read-only. Per-user connection handles are encrypted in the data
 
 Career evidence, applications, and mailbox-derived records are scoped to the signed-in user. Deployment owners should define retention, backup, export, and account-deletion practices before inviting others.
 
-## Lovable services
-
-AI, Gmail, Firecrawl extraction and Google sign-in currently run through Lovable-hosted services. See
-[DEPLOY.md](DEPLOY.md#lovable-services-this-build-still-uses) for what that means for a self-hosted install.
-
 ## Stack
 
 - TanStack Start
 - TypeScript
 - React
 - Tailwind CSS
-- Lovable Cloud-compatible PostgreSQL and authentication
+- Supabase (PostgreSQL, authentication, storage)
+- Nitro (Node server by default)

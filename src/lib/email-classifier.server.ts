@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { generateStructured } from "./ai.server";
 
 export const emailSchema = z.object({

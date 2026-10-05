@@ -10,6 +10,8 @@ services:
         VITE_SUPABASE_PROJECT_ID: ${VITE_SUPABASE_PROJECT_ID}
     env_file: .env
     ports: ["3000:3000"]
+    # Lets the app reach services on this machine, e.g. Ollama at http://host.docker.internal:11434/v1 (needed on Linux)
+    extra_hosts: ["host.docker.internal:host-gateway"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/public/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]

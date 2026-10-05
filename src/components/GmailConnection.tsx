@@ -25,8 +25,8 @@ export function GmailConnection({ compact = false }: { compact?: boolean }) {
       const completion = waitForGmailOAuth(popup);
       const { authorizationUrl } = await start();
       popup.location.href = authorizationUrl;
-      const code = await completion;
-      const result = await complete({ data: { code } });
+      const { code, state } = await completion;
+      const result = await complete({ data: { code, state } });
       await queryClient.invalidateQueries({ queryKey: ["gmail-status"] });
       await queryClient.invalidateQueries({ queryKey: ["source-connections"] });
       toast.success(result.automatic ? "Gmail connected · automatic updates on" : `Gmail connected · ${result.reason ?? "use Check inbox now"}`);
@@ -50,10 +50,11 @@ export function GmailConnection({ compact = false }: { compact?: boolean }) {
   async function remove() {
     setBusy(true);
     try {
-      await disconnect();
+      const result = await disconnect();
       await queryClient.invalidateQueries({ queryKey: ["gmail-status"] });
       await queryClient.invalidateQueries({ queryKey: ["source-connections"] });
-      toast.success("Gmail disconnected");
+      if (result.revoked) toast.success("Gmail disconnected");
+      else toast.warning("Gmail disconnected here. Also remove Nexus at myaccount.google.com/connections to revoke access.");
     } catch (error) { toast.error(error instanceof Error ? error.message : "Could not disconnect Gmail."); }
     finally { setBusy(false); }
   }
