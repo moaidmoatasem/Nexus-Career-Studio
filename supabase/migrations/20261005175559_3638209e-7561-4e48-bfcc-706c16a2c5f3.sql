@@ -1,0 +1,2 @@
+ALTER TABLE public.source_connections ADD CONSTRAINT source_connections_user_source_key UNIQUE (user_id, source);
+ALTER TABLE public.applications ADD CONSTRAINT applications_user_job_key UNIQUE (user_id, job_id);

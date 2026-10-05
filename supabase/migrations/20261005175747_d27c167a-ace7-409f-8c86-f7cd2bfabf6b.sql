@@ -1,0 +1,1 @@
+CREATE POLICY "own gmail sync state delete" ON public.gmail_sync_state FOR DELETE TO authenticated USING (auth.uid() = user_id);

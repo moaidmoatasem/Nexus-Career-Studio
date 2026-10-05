@@ -1,0 +1,1 @@
+ALTER FUNCTION public.activate_sponsor_snapshot(uuid) SET statement_timeout = '5min';

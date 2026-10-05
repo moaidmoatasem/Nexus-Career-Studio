@@ -1,0 +1,30 @@
+# Roadmap
+
+- [x] Enable Lovable Cloud, sign-in (email + Google), database (profiles, vault, jobs, applications, sponsors)
+- [x] Port scorer, sponsor matcher (SQL), provenance auditor, AI functions (extract, tailor, classify)
+- [x] Screens: landing, sign-in, Role Radar, Career Vault, Synthesizer, Applications, Sponsor Oracle, ATS Resume
+- [x] Compared GitHub repo moaidmoatasem/Nexus-Career-Studio — identical to the uploaded zip
+- [x] Redesign UI around an evidence-to-application workflow with a collapsible workspace sidebar
+- [x] Workflow foundation: Today queue, Discovery Inbox decisions, source readiness, and activity history
+- [x] Connect web discovery and build job-link extraction
+- [x] Complete Gmail history sync, confidence matching, unmatched review records, and verified push endpoint; Outlook setup was skipped
+- [x] Complete assisted-apply checklist, confirmation, and event logging
+- [x] Replace sample roles with verified public postings and add user-triggered employer/ATS discovery
+- [x] Import the full official UK sponsor register (142,630 current rows) with source snapshot metadata
+- [x] Reframe navigation around Today → Discover → Saved roles → Applications → Career profile → Resume → Connections
+- [x] Add setup progress, a focused application workspace, and candidate-confirmed official-portal submission
+- [x] Add downloadable NFC-normalized, text-based ATS PDF generation
+- [x] Self-host packaging: Dockerfile, .env.example, DEPLOY.md
+- [x] New application portal (typed job details → grounded resume + cover letter → board)
+- [x] Portable server runtime (Web Crypto; no Node-only built-ins) for Docker and edge hosting
+- [x] Agent runtime v1: on/off + autonomy mode, background heartbeat (inbox sync, Gmail watch renewal, 7-day follow-ups), audit log, Run now
+- [x] Mission Control as home; health endpoint; Docker Compose with scheduler; Gmail setup helper + guide
+- [x] Portal assistant: detects Lever/Greenhouse/Workday/Ashby/Workable/SmartRecruiters, guided steps, verified copy-fields, hard stop list
+- [x] Optional portal helper (worker/) + Prepare in portal + screenshots; runs only on your server
+- [x] ATS packs: Generic/Workday/Lever profiles, PDF + Word, plain text, cover letter, fact-check report
+- [x] Sponsor register refresh (button + weekly), match reasons, listing sponsorship wording
+- [x] Insights (funnel, response rate, days to reply, career gaps) and Needs-your-decision queue with email linking
+- [x] Settings: export and delete account; backup/restore docs
+- [ ] Real Gmail walk-through — blocked on your Google consent in the preview
+- [ ] Gmail live push activation — blocked until the Google Pub/Sub topic and authenticated push subscription are configured
+- [ ] Later: Arabic RTL toggle
