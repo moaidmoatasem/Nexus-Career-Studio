@@ -1,6 +1,7 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
+import { isEmailAllowed, PrivateInstanceError } from "@/lib/allowlist";
 import type { Database } from "./types";
 
 function isNewSupabaseApiKey(value: string): boolean {
@@ -91,6 +92,10 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
 
     if (!data.claims.sub) {
       throw new Error("Unauthorized: No user ID found in token");
+    }
+
+    if (!isEmailAllowed(typeof data.claims.email === "string" ? data.claims.email : undefined)) {
+      throw new PrivateInstanceError();
     }
 
     return next({

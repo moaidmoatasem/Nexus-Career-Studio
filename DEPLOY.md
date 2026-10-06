@@ -24,8 +24,12 @@ needed, and every integration except the database is optional.
 4. Email sign-in works out of the box. For **Continue with Google**, open **Authentication → Providers → Google**,
    enter a Google OAuth client ID and secret, and add `https://<project-ref>.supabase.co/auth/v1/callback` to that
    client's authorized redirect URIs in Google Cloud.
-5. From **Project Settings → API**, copy the URL, the publishable (anon) key and the secret (service role) key into `.env`.
-6. After you first sign in, open **Sponsor check → Check for a newer register** to import the official Home Office
+5. **Keep this instance private.** Anyone who can sign up can spend your AI and Firecrawl credit. Set
+   `ALLOWED_EMAILS` (step 2) and, once your own account exists, switch off **Authentication → Sign In / Providers →
+   Allow new users to sign up** (leave **Confirm email** on, since the allowlist trusts the address Supabase reports).
+   Anyone not on the list gets "This Nexus instance is private" from every server function, and the agent skips them.
+6. From **Project Settings → API**, copy the URL, the publishable (anon) key and the secret (service role) key into `.env`.
+7. After you first sign in, open **Sponsor check → Check for a newer register** to import the official Home Office
    register (about 140,000 entries). The background agent refreshes it weekly after that.
 
 ## 2. Configure
@@ -34,6 +38,7 @@ cp .env.example .env
 openssl rand -base64 32   # → APP_USER_CONNECTION_KEY_SECRET (encrypts stored Gmail tokens)
 openssl rand -hex 32      # → AGENT_TICK_SECRET (protects the scheduler endpoint)
 ```
+Set `ALLOWED_EMAILS` to a comma-separated list of addresses or `@domain` entries (empty allows anyone who can sign in).
 Set `APP_URL` to the address people use to open the app, without a trailing slash (for example
 `https://nexus.example.com`). Keep `.env` out of git.
 

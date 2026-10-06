@@ -2,6 +2,7 @@
 import type { Json } from "@/integrations/supabase/types";
 // with the browser closed. Each user is processed under a lease so parallel
 // ticks never double-run work. Every action is written to agent_activity.
+import { isEmailAllowed, parseAllowlist } from "@/lib/allowlist";
 import { registerGmailWatch, syncGmailForUser } from "./gmailSync.server";
 
 type Admin = Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"];
@@ -30,7 +31,13 @@ export async function runAgentTick(maxUsers = 25) {
     .limit(maxUsers);
   if (error) throw error;
   const results: Array<{ userId: string; ok: boolean }> = [];
+  const restricted = parseAllowlist(process.env["ALLOWED_EMAILS"]).length > 0;
   for (const u of users ?? []) {
+    if (restricted) {
+      // Users who are not on the allowlist (for example after it was tightened) are never run.
+      const { data: account } = await db.auth.admin.getUserById(u.user_id);
+      if (!isEmailAllowed(account?.user?.email)) continue;
+    }
     const { data: claimed } = await db.rpc("claim_automation_job", {
       target_key: `agent:${u.user_id}`,
       target_type: "agent_tick",
@@ -219,6 +226,7 @@ export function checkConfiguration() {
       has("APP_USER_CONNECTION_KEY_SECRET"),
     gmailLiveUpdates: has("GMAIL_PUBSUB_TOPIC") && has("GMAIL_PUBSUB_SERVICE_ACCOUNT"),
     scheduler: has("AGENT_TICK_SECRET"),
+    privateInstance: has("ALLOWED_EMAILS"),
   };
 }
 
