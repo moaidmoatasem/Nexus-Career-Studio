@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { GmailConnection } from "@/components/GmailConnection";
 import { SetupProgress } from "@/components/SetupProgress";
 import { AgentPanel } from "@/components/AgentPanel";
+import { SyncBanner } from "@/components/SyncBanner";
 import { ReviewQueue } from "@/components/ReviewQueue";
 import { InsightsPanel } from "@/components/InsightsPanel";
 
@@ -62,6 +63,7 @@ function TodayPage() {
         title="Mission Control"
         sub="What your agent did, and the one thing that needs you next."
       />
+      <SyncBanner />
       <SetupProgress />
       <ReviewQueue />
       <AgentPanel />

@@ -130,5 +130,6 @@ export const syncGmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { syncGmailForUser } = await import("@/server/gmailSync.server");
-    return syncGmailForUser(context.userId);
+    // The user asked for this check, so a sync paused by a rejected AI key is retried now.
+    return syncGmailForUser(context.userId, 20, { manual: true });
   });

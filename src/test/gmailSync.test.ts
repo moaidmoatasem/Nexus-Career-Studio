@@ -138,7 +138,7 @@ vi.mock("@/lib/alertLeads.server", () => ({
 }));
 
 import { AiError } from "@/lib/ai.server";
-import { syncGmailForUser } from "@/server/gmailSync.server";
+import { PAUSED_MESSAGE, syncGmailForUser } from "@/server/gmailSync.server";
 
 const USER = "user-1";
 const INFORMATIONAL = {
@@ -357,5 +357,144 @@ describe("one bad message never blocks the sync", () => {
     await expect(syncGmailForUser(USER)).rejects.toBeInstanceOf(AiError);
     expect(tables["gmail_sync_state"]![0]).toMatchObject({ status: "paused" });
     expect(row("k1")).toBeUndefined();
+  });
+});
+
+describe("scam signals", () => {
+  const INVITE =
+    "We would like to invite you to interview for the Platform Engineer role at Initech.";
+  const application = () => tables["applications"]![0]!;
+
+  it("lets ordinary employer mail move the application (the control case)", async () => {
+    state.mailbox = [
+      {
+        id: "ok",
+        from: "Initech Recruiting <jobs@initech.example>",
+        subject: "Interview invitation: Platform Engineer",
+        body: INVITE,
+      },
+    ];
+    classify.mockResolvedValue(INTERVIEW);
+    await syncGmailForUser(USER);
+    expect(application()["status"]).toBe("interviewing");
+    expect(tables["unmatched_mail_messages"] ?? []).toEqual([]);
+  });
+
+  it("never moves an application for free-mail mail that names the employer and role", async () => {
+    state.mailbox = [
+      {
+        id: "free",
+        from: "Initech Recruiting <initech.recruiting@gmail.com>",
+        subject: "Interview invitation: Platform Engineer",
+        body: INVITE,
+      },
+    ];
+    classify.mockResolvedValue(INTERVIEW);
+    await syncGmailForUser(USER);
+    expect(application()["status"]).toBe("applied");
+    const [queued] = tables["unmatched_mail_messages"]!;
+    expect(queued).toMatchObject({ provider_message_id: "free", possible_scam: true });
+    expect(String(queued!["match_reason"])).toMatch(/free-mail address \(gmail\.com\)/);
+  });
+
+  it("flags a request for a fee or visa payment even from a look-alike employer address", async () => {
+    state.mailbox = [
+      {
+        id: "fee",
+        from: "Initech HR <hr@initech-careers.example>",
+        subject: "Job offer: Platform Engineer at Initech",
+        body: `${INVITE} To secure your place, pay the visa processing fee of $300 by Western Union today.`,
+      },
+    ];
+    classify.mockResolvedValue({ ...INTERVIEW, status: "offer" });
+    await syncGmailForUser(USER);
+    expect(application()["status"]).toBe("applied");
+    const [queued] = tables["unmatched_mail_messages"]!;
+    expect(queued).toMatchObject({ provider_message_id: "fee", possible_scam: true });
+    expect(String(queued!["match_reason"])).toMatch(/asks for a fee/);
+  });
+
+  it("does not flag a friend's free-mail message the classifier calls informational", async () => {
+    state.mailbox = [
+      {
+        id: "friend",
+        from: "Sam <sam@gmail.com>",
+        subject: "Interview tips",
+        body: "Some tips for your interview next week, good luck!",
+      },
+    ];
+    classify.mockResolvedValue(INFORMATIONAL);
+    await syncGmailForUser(USER);
+    expect(tables["unmatched_mail_messages"] ?? []).toEqual([]);
+  });
+});
+
+describe("a paused sync recovers", () => {
+  const MAIL: Mail = {
+    id: "k1",
+    from: "Initech <hr@initech.example>",
+    subject: "Interview invitation",
+    body: "Please pick a time to interview with us.",
+  };
+  const stateRow = () => tables["gmail_sync_state"]![0]!;
+  const pause = async () => {
+    state.mailbox = [MAIL];
+    classify.mockRejectedValueOnce(new AiError("The AI provider rejected the API key.", 403));
+    await expect(syncGmailForUser(USER)).rejects.toBeInstanceOf(AiError);
+  };
+
+  it("pauses with a plain reason that the connection shows", async () => {
+    await pause();
+    expect(stateRow()).toMatchObject({ status: "paused", last_error: PAUSED_MESSAGE });
+    expect(typeof stateRow()["paused_at"]).toBe("string");
+    expect(PAUSED_MESSAGE).toMatch(/rejected the key or is out of credits/);
+    expect(tables["source_connections"]![0]).toMatchObject({
+      source: "gmail",
+      status: "needs_attention",
+      last_error: PAUSED_MESSAGE,
+    });
+  });
+
+  it("stays paused, without calling the AI, until a day has passed", async () => {
+    await pause();
+    classify.mockClear();
+    const quiet = await syncGmailForUser(USER, 25, { retryPausedAfterMs: 24 * 3600_000 });
+    expect(quiet).toMatchObject({ ok: false, paused: true, error: PAUSED_MESSAGE });
+    expect(await syncGmailForUser(USER)).toMatchObject({ ok: false, paused: true });
+    expect(classify).not.toHaveBeenCalled();
+  });
+
+  it("is retried by the agent after a day and the pause clears on success", async () => {
+    await pause();
+    stateRow()["paused_at"] = new Date(Date.now() - 25 * 3600_000).toISOString();
+    classify.mockResolvedValue(INFORMATIONAL);
+    const result = await syncGmailForUser(USER, 25, { retryPausedAfterMs: 24 * 3600_000 });
+    expect(result.ok).toBe(true);
+    expect(stateRow()).toMatchObject({ status: "ready", last_error: null, paused_at: null });
+    expect(tables["source_connections"]!.find((r) => r["source"] === "gmail")).toMatchObject({
+      status: "ready",
+      last_error: null,
+    });
+  });
+
+  it("is retried at once by Check inbox now", async () => {
+    await pause();
+    classify.mockResolvedValue(INFORMATIONAL);
+    const result = await syncGmailForUser(USER, 20, { manual: true });
+    expect(result.ok).toBe(true);
+    expect(stateRow()).toMatchObject({ status: "ready", paused_at: null });
+  });
+
+  it("starts the daily clock again when the retry fails too", async () => {
+    await pause();
+    stateRow()["paused_at"] = new Date(Date.now() - 25 * 3600_000).toISOString();
+    classify.mockRejectedValue(new AiError("The AI provider rejected the API key.", 403));
+    await expect(
+      syncGmailForUser(USER, 25, { retryPausedAfterMs: 24 * 3600_000 }),
+    ).rejects.toBeInstanceOf(AiError);
+    expect(Date.now() - Date.parse(String(stateRow()["paused_at"]))).toBeLessThan(60_000);
+    expect(await syncGmailForUser(USER, 25, { retryPausedAfterMs: 24 * 3600_000 })).toMatchObject({
+      paused: true,
+    });
   });
 });

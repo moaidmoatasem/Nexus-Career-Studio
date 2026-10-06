@@ -3,7 +3,8 @@ import type { Json } from "@/integrations/supabase/types";
 // with the browser closed. Each user is processed under a lease so parallel
 // ticks never double-run work. Every action is written to agent_activity.
 import { isEmailAllowed, parseAllowlist } from "@/lib/allowlist";
-import { registerGmailWatch, syncGmailForUser } from "./gmailSync.server";
+import { AiError } from "@/lib/ai.server";
+import { PAUSED_MESSAGE, registerGmailWatch, syncGmailForUser } from "./gmailSync.server";
 
 type Admin = Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"];
 
@@ -130,8 +131,18 @@ async function runForUser(db: Admin, userId: string, policy: string) {
     .eq("connector_id", "google_mail")
     .maybeSingle();
   if (conn) {
-    const r = await syncGmailForUser(userId, 25);
-    if (!r.ok) {
+    // A sync paused by a rejected AI key is retried once a day, not every run.
+    const r = await syncGmailForUser(userId, 25, { retryPausedAfterMs: 24 * 3600_000 }).catch(
+      async (error: unknown) => {
+        if (!(error instanceof AiError) || ![402, 403].includes(error.status)) throw error;
+        await log(db, userId, "process_gmail_history", "needs_you", PAUSED_MESSAGE, policy);
+        return null;
+      },
+    );
+    if (r === null) ok = false;
+    else if ("paused" in r && r.paused) {
+      /* Waiting for the daily retry; the connection already shows why. */
+    } else if (!r.ok) {
       ok = false;
       await log(
         db,

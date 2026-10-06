@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Building2, CheckCircle2, Link2, Mail, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { GmailConnection } from "@/components/GmailConnection";
+import { SyncBanner } from "@/components/SyncBanner";
 import { GmailSetupHelp } from "@/components/GmailSetupHelp";
 import { Badge } from "@/components/ui/badge";
 
@@ -29,6 +30,7 @@ function ConnectionsPage() {
         title="Connections"
         sub="Choose where opportunities and application updates come from."
       />
+      <SyncBanner />
       <section className="border-y py-6">
         <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
           <div className="flex max-w-xl gap-4">
