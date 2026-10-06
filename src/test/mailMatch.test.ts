@@ -96,12 +96,12 @@ describe("mail source kind", () => {
     );
     expect(senderDomain("Talent <TALENT@Careers.Revolut.com>")).toBe("careers.revolut.com");
   });
-  it("only follows links on real job-site hosts", () => {
+  it("only follows https links on real employer ATS hosts, never job boards", () => {
     expect(
       jobLinks(
-        "See https://www.linkedin.com/jobs/view/1 and https://linkedin.com.evil.example/jobs/2 and http://boards.greenhouse.io/x",
+        "See https://www.linkedin.com/jobs/view/1 and https://jobs.lever.co.evil.example/2 and http://boards.greenhouse.io/x and https://boards.greenhouse.io/y/jobs/3",
       ),
-    ).toEqual(["https://www.linkedin.com/jobs/view/1"]);
+    ).toEqual(["https://boards.greenhouse.io/y/jobs/3"]);
   });
 });
 

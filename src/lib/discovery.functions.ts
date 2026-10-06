@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type IntakeResult =
-  { ok: true; data: { jobId: string; duplicate: boolean } } | { ok: false; error: string };
+  | { ok: true; data: { jobId: string; duplicate: boolean } }
+  | { ok: false; error: string; needsText?: true };
 
 const inputSchema = z.object({ url: z.string().url().max(2000) });
 
@@ -13,6 +14,9 @@ export const intakeJobUrl = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<IntakeResult> => {
     const { canonicalizeJobUrl, extractPublicJob, saveJobForUser, sourceProvider } =
       await import("./discovery.server");
+    const { isJobBoardUrl, JOB_BOARD_MESSAGE } = await import("./jobSources");
+    // Board links are never fetched; the user pastes the description text instead.
+    if (isJobBoardUrl(data.url)) return { ok: false, error: JOB_BOARD_MESSAGE, needsText: true };
     let canonicalUrl: string;
     try {
       canonicalUrl = canonicalizeJobUrl(data.url);

@@ -21,6 +21,29 @@ const BLOCKED_V4 = [
   ["240.0.0.0", 4],
 ];
 
+// Job boards forbid automated access, so the helper never opens one as a page. Mirrors
+// src/lib/jobSources.ts (the worker is a separate package); src/test/jobSources.test.ts
+// checks that the two lists agree.
+const BOARD_BRANDS = [
+  "linkedin",
+  "indeed",
+  "glassdoor",
+  "bayt",
+  "naukrigulf",
+  "gulftalent",
+  "wuzzuf",
+];
+
+const ATS_DOMAINS = ["myworkdayjobs.com", "greenhouse.io", "lever.co", "ashbyhq.com"];
+
+export function isJobBoardHost(host) {
+  const h = host.toLowerCase().replace(/\.$/, "");
+  if (ATS_DOMAINS.some((d) => h === d || h.endsWith(`.${d}`))) return false;
+  return (
+    h === "lnkd.in" || h.endsWith(".lnkd.in") || h.split(".").some((l) => BOARD_BRANDS.includes(l))
+  );
+}
+
 const v4ToInt = (ip) => ip.split(".").reduce((acc, octet) => (acc << 8) + Number(octet), 0) >>> 0;
 
 /** True for any address the helper must not contact. Unparseable input counts as blocked. */
@@ -76,6 +99,9 @@ export async function checkUrl(
   ) {
     return { ok: false, reason: `Blocked internal host ${host}` };
   }
+  // Top-level pages only: sub-resources (allowHttp) may include a board's tracking pixels.
+  if (!allowHttp && isJobBoardHost(host))
+    return { ok: false, reason: `${host} is a job board; Nexus never automates job boards` };
   if (allowedHosts.length && !allowedHosts.some((d) => host === d || host.endsWith(`.${d}`))) {
     return { ok: false, reason: `${host} is not in PORTAL_ALLOWED_HOSTS` };
   }

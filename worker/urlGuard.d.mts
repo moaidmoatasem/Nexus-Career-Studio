@@ -7,3 +7,4 @@ export interface CheckUrlOptions {
 }
 export function isBlockedAddress(ip: string): boolean;
 export function checkUrl(raw: string, options?: CheckUrlOptions): Promise<UrlVerdict>;
+export function isJobBoardHost(host: string): boolean;

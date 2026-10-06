@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { hostIs } from "./mailMatch";
+import { assertNotJobBoard, hostIs, isJobBoardUrl } from "./jobSources";
 
 const extractedJobSchema = z.object({
   title: z.string().trim().min(2),
@@ -155,15 +155,19 @@ export async function saveJobForUser(
 }
 
 export async function searchPublicJobs(query: string, limit = 6) {
+  // Web search may surface board pages; they are dropped, never fetched.
   const response = await firecrawl("/v2/search", { query, limit });
   const text = await response.text();
   if (!response.ok)
     throw new Error(`Job discovery failed [${response.status}]: ${text.slice(0, 300)}`);
   const raw = JSON.parse(text) as { data?: { web?: Array<{ url?: string }> } };
-  return (raw.data?.web ?? []).flatMap((item) => (item.url ? [item.url] : []));
+  return (raw.data?.web ?? []).flatMap((item) =>
+    item.url && !isJobBoardUrl(item.url) ? [item.url] : [],
+  );
 }
 
 export async function extractPublicJob(rawUrl: string): Promise<ExtractedJob> {
+  assertNotJobBoard(rawUrl);
   const canonicalUrl = canonicalizeJobUrl(rawUrl);
   const response = await firecrawl("/v2/scrape", {
     url: canonicalUrl,
