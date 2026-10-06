@@ -318,6 +318,7 @@ export type Database = {
           last_success_at: string | null
           lease_expires_at: string | null
           mailbox_email: string | null
+          paused_at: string | null
           status: string
           updated_at: string
           user_id: string
@@ -331,6 +332,7 @@ export type Database = {
           last_success_at?: string | null
           lease_expires_at?: string | null
           mailbox_email?: string | null
+          paused_at?: string | null
           status?: string
           updated_at?: string
           user_id: string
@@ -344,6 +346,7 @@ export type Database = {
           last_success_at?: string | null
           lease_expires_at?: string | null
           mailbox_email?: string | null
+          paused_at?: string | null
           status?: string
           updated_at?: string
           user_id?: string
@@ -489,6 +492,7 @@ export type Database = {
         Row: {
           action_summary: string | null
           application_id: string | null
+          attempts: number
           classification: string | null
           company_name: string | null
           confidence: number | null
@@ -502,8 +506,10 @@ export type Database = {
           provider_history_id: string | null
           provider_message_id: string
           received_at: string | null
+          skip_reason: string | null
           sender: string
           source_kind: string
+          status: string
           subject: string
           updated_at: string
           user_id: string
@@ -511,6 +517,7 @@ export type Database = {
         Insert: {
           action_summary?: string | null
           application_id?: string | null
+          attempts?: number
           classification?: string | null
           company_name?: string | null
           confidence?: number | null
@@ -524,8 +531,10 @@ export type Database = {
           provider_history_id?: string | null
           provider_message_id: string
           received_at?: string | null
+          skip_reason?: string | null
           sender?: string
           source_kind?: string
+          status?: string
           subject?: string
           updated_at?: string
           user_id: string
@@ -533,6 +542,7 @@ export type Database = {
         Update: {
           action_summary?: string | null
           application_id?: string | null
+          attempts?: number
           classification?: string | null
           company_name?: string | null
           confidence?: number | null
@@ -546,8 +556,10 @@ export type Database = {
           provider_history_id?: string | null
           provider_message_id?: string
           received_at?: string | null
+          skip_reason?: string | null
           sender?: string
           source_kind?: string
+          status?: string
           subject?: string
           updated_at?: string
           user_id?: string
@@ -821,6 +833,7 @@ export type Database = {
           job_title: string | null
           linked_application_id: string | null
           match_reason: string | null
+          possible_scam: boolean
           provider: string
           provider_message_id: string
           received_at: string | null
@@ -839,6 +852,7 @@ export type Database = {
           job_title?: string | null
           linked_application_id?: string | null
           match_reason?: string | null
+          possible_scam?: boolean
           provider: string
           provider_message_id: string
           received_at?: string | null
@@ -857,6 +871,7 @@ export type Database = {
           job_title?: string | null
           linked_application_id?: string | null
           match_reason?: string | null
+          possible_scam?: boolean
           provider?: string
           provider_message_id?: string
           received_at?: string | null
