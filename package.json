@@ -13,6 +13,8 @@
     "format": "eslint . --fix",
     "test": "vitest run",
     "test:watch": "vitest",
+    "db:local": "npx supabase start",
+    "db:local:stop": "npx supabase stop",
     "db:types": "supabase gen types typescript --linked > src/integrations/supabase/types.ts",
     "check": "bun run typecheck && bun run lint && bun run test && bun run build"
   },
