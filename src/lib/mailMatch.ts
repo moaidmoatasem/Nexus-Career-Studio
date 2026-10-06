@@ -2,6 +2,7 @@
 // An application only moves automatically when the email names the same employer AND
 // the same role, and no other application fits equally well. Everything else goes to
 // the review queue. Whole words only: "Arm" never matches "warm regards".
+import { EMPLOYER_ATS_DOMAINS, gulfBoardBrand, hostIs, isJobBoardHost } from "./jobSources";
 
 const LEGAL_WORDS = new Set([
   "limited",
@@ -75,11 +76,7 @@ export function senderDomain(sender: string): string {
   return at >= 0 ? address.slice(at + 1).replace(/[^a-z0-9.-]/g, "") : "";
 }
 
-/** True when `host` is `domain` or one of its subdomains (never "linkedin.com.example.org"). */
-export function hostIs(host: string, domain: string): boolean {
-  const h = host.toLowerCase().replace(/\.$/, "");
-  return h === domain || h.endsWith(`.${domain}`);
-}
+export { hostIs };
 
 /** The sender's own domain names the employer, e.g. jobs@amazon.jobs for "Amazon". */
 export function senderIsCompany(sender: string, company: string): boolean {
@@ -163,7 +160,8 @@ export function matchApplication<T extends MatchCandidate>(
   };
 }
 
-export type MailSourceKind = "recruiter" | "linkedin_alert" | "indeed_alert" | "workday_alert";
+export type MailSourceKind =
+  "recruiter" | "linkedin_alert" | "indeed_alert" | "workday_alert" | "gulf_board_alert";
 
 /**
  * Job-alert mail is recognised by the sender's real domain, not the display name, so a
@@ -174,6 +172,9 @@ export function mailSourceKind(sender: string, subject: string): MailSourceKind 
   const domain = senderDomain(sender);
   if (hostIs(domain, "linkedin.com")) return "linkedin_alert";
   if (hostIs(domain, "indeed.com")) return "indeed_alert";
+  // Bayt, Naukrigulf, GulfTalent and Wuzzuf mail is recognised so it is never treated as
+  // recruiter mail; it is skipped until a parser exists (PLAN.md task A.3).
+  if (gulfBoardBrand(domain)) return "gulf_board_alert";
   if (
     hostIs(domain, "myworkday.com") &&
     /\bjob alert|\bnew jobs?\b|\bjobs? (?:for you|matching)/i.test(subject)
@@ -183,16 +184,7 @@ export function mailSourceKind(sender: string, subject: string): MailSourceKind 
   return "recruiter";
 }
 
-const JOB_LINK_DOMAINS = [
-  "linkedin.com",
-  "indeed.com",
-  "myworkdayjobs.com",
-  "greenhouse.io",
-  "lever.co",
-  "ashbyhq.com",
-];
-
-/** Up to three job-posting links on known job sites, matched on the real host name. */
+/** Up to three posting links on public employer ATS hosts, matched on the real host name. Job-board links are never returned. */
 export function jobLinks(text: string, limit = 3): string[] {
   const matches = text.match(/https?:\/\/[^\s<>"')]+/g) ?? [];
   return [...new Set(matches.map((value) => value.replace(/[.,;]+$/, "")))]
@@ -201,7 +193,8 @@ export function jobLinks(text: string, limit = 3): string[] {
         const url = new URL(value);
         return (
           url.protocol === "https:" &&
-          JOB_LINK_DOMAINS.some((domain) => hostIs(url.hostname, domain))
+          !isJobBoardHost(url.hostname) &&
+          EMPLOYER_ATS_DOMAINS.some((domain) => hostIs(url.hostname, domain))
         );
       } catch {
         return false;

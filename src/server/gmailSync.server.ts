@@ -212,6 +212,33 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
         ? new Date(Number(message.internalDate)).toISOString()
         : null;
       const kind = mailSourceKind(sender, subject);
+      if (kind === "gulf_board_alert") {
+        // Recognised so it never reaches the AI provider or the review queue; no parser yet.
+        await supabaseAdmin.from("processed_mail_messages").upsert(
+          {
+            user_id: userId,
+            provider: "gmail",
+            provider_message_id: id,
+            application_id: null,
+            classification: "informational",
+            matched: false,
+            sender,
+            subject,
+            received_at: receivedAt,
+            source_kind: "other",
+            confidence: 0,
+            company_name: "",
+            action_summary: "Gulf job-board alert skipped: it can't be read yet",
+            match_reason: null,
+            provider_history_id: message.historyId ?? null,
+            processed_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,provider,provider_message_id" },
+        );
+        newestHistory = message.historyId ?? newestHistory;
+        processed += 1;
+        continue;
+      }
       const classification = await classifyRecruitmentEmail({ sender, subject, body });
       let alertJobsAdded = 0;
       if (kind !== "recruiter") {
