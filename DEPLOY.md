@@ -11,6 +11,34 @@ needed, and every integration except the database is optional.
 | Job-page reading | For "Paste job link" and "Find roles now" | Firecrawl — hosted (firecrawl.dev) or self-hosted |
 | Gmail | For inbox tracking | Your own Google Cloud OAuth client |
 
+## 0. Try it on your computer first, with no accounts
+Nexus needs a Supabase database, but it doesn't have to be a hosted one. The Supabase CLI runs the whole stack
+(Postgres, sign-in and a local mail inbox) in Docker on your own machine, with no account and nothing to copy from a
+dashboard. Data stays on your computer. Use this to look around; use a hosted project (section 1) to deploy.
+
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and start it. Optional: install
+   [Ollama](https://ollama.com) and run `ollama pull qwen2.5:14b` for free local AI.
+2. In the repository: `bun install`, then `bun run db:local` (the first run downloads the images, a few minutes).
+   It applies every migration in `supabase/migrations` and prints the local addresses and keys.
+3. `cp .env.example .env` and fill in, from what the command printed:
+   ```sh
+   VITE_SUPABASE_URL=http://127.0.0.1:54321           # "API URL"
+   SUPABASE_URL=http://127.0.0.1:54321
+   VITE_SUPABASE_PUBLISHABLE_KEY=<publishable or anon key>
+   SUPABASE_PUBLISHABLE_KEY=<the same key>
+   SUPABASE_SERVICE_ROLE_KEY=<secret or service_role key>
+   AI_BASE_URL=http://localhost:11434/v1              # Ollama; or any provider from section 3
+   AI_MODEL=qwen2.5:14b
+   ```
+   Run `npx supabase status` to see the keys again.
+4. `bun run dev` and open `http://localhost:3000`. Sign up with any address: local sign-up needs no email
+   confirmation, and any mail Supabase sends shows up at `http://127.0.0.1:54324`.
+5. Gmail, Firecrawl and the scheduler are optional here; health (`/api/public/health`) shows what is switched on.
+   Greenhouse, Lever and Ashby links work without Firecrawl.
+
+Stop it with `bun run db:local:stop` (your data is kept for next time). When you're ready to deploy, create the
+hosted project in section 1; there's nothing to carry over from the local trial.
+
 ## 1. Database and sign-in (Supabase)
 1. Create a project at [supabase.com](https://supabase.com) (or run Supabase yourself).
 2. Apply every migration in `supabase/migrations/`:
