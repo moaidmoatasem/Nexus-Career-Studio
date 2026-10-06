@@ -92,6 +92,40 @@ export const intakeJobText = createServerFn({ method: "POST" })
     const { AiError } = await import("./ai.server");
     try {
       const job = await extractJobFromText(data.text, data.link);
+      // Pasting the text of a role that arrived as an alert-email lead completes that lead.
+      if (job.job_url) {
+        const { data: lead } = await context.supabase
+          .from("jobs")
+          .select("id")
+          .eq("user_id", context.userId)
+          .eq("canonical_url", job.canonical_url)
+          .eq("description", "")
+          .maybeSingle();
+        if (lead) {
+          const { error } = await context.supabase
+            .from("jobs")
+            .update({
+              title: job.title,
+              company_name: job.company_name,
+              location: job.location,
+              country: job.country,
+              is_remote: job.is_remote,
+              salary_range: job.salary_range,
+              description: job.description,
+              required_skills: job.required_skills,
+              preferred_skills: job.preferred_skills,
+              min_years_exp: job.min_years_exp,
+              domain: job.domain,
+              source_provider: job.source_provider,
+              lifecycle_status: job.lifecycle_status,
+              extraction_provenance: job.extraction_provenance,
+            })
+            .eq("id", lead.id)
+            .eq("user_id", context.userId);
+          if (error) return { ok: false, error: error.message };
+          return { ok: true, data: { jobId: lead.id, duplicate: false } };
+        }
+      }
       const saved = await saveJobForUser(context.supabase, context.userId, job, "pasted");
       if (saved.status === "failed") return { ok: false, error: saved.error };
       const { data: row } = await context.supabase

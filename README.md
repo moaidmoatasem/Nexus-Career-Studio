@@ -16,7 +16,7 @@ decision and [PLAN.md](PLAN.md) the plan.
 
 - Candidates make the final submission on each employer's official portal.
 - Resume and application claims come only from verified Career Vault evidence.
-- Job boards (LinkedIn, Indeed, Glassdoor, Bayt, Naukrigulf, GulfTalent, Wuzzuf) are never fetched, scraped or automated by the server, the portal worker or an extension; their terms forbid it. A pasted board link is refused with a request for the job text, and only employer postings (Greenhouse, Lever, Ashby, Workday and employer career pages) are read on the server. Board roles enter through your own alert emails and text you paste.
+- Job boards (LinkedIn, Indeed, Glassdoor, Bayt, Naukrigulf, GulfTalent, Wuzzuf) are never fetched, scraped or automated by the server, the portal worker or an extension; their terms forbid it. A pasted board link is refused with a request for the job text, and only employer postings (Greenhouse, Lever, Ashby, Workday and employer career pages) are read on the server. Board roles enter through your own alert emails (their title, employer and location become a lead whose link you open yourself) and text you paste, which completes the lead.
 - Workday, Lever, Greenhouse, and Ashby support uses public postings and assisted completion unless an employer grants API access.
 - A Home Office register match confirms a sponsor licence, not sponsorship for a particular vacancy.
 
