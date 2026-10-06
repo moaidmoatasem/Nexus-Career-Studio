@@ -3,6 +3,7 @@
 - Do not add dependencies on hosted gateways or vendor-specific build plugins; call providers through their public APIs.
 - Keep `main` deployable and do not rewrite published history.
 - The product direction, automation policy and principles are in STRATEGY.md; the work plan is PLAN.md.
+- PLAN.md's gates are binding: work behind a closed gate does not start. Before building a feature, check whether career-ops or JobSync already provides it; if one does, propose contributing there first.
 
 ## Architecture rules
 - AI calls live in `src/lib/ai.functions.ts` (auth-protected server functions) using `generateStructured` in `src/lib/ai.server.ts`, which talks to any OpenAI-compatible Chat Completions API (`AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY`) and validates replies with zod; keys stay server-side.
@@ -14,6 +15,8 @@
 - Job postings are read on the server only from employer sources: public ATS APIs (Greenhouse, Lever, Ashby) and employer career pages through Firecrawl's v2 API (hosted or self-hosted via `FIRECRAWL_API_URL`). Inaccessible pages fail explicitly and never produce invented job fields.
 - Gmail uses the deployment's own Google OAuth client (`src/server/gmailApi.server.ts`): a signed state binds each callback to its user, refresh tokens are AES-GCM encrypted at rest, and tokens are only used by server code; keeps mailbox credentials out of browser-accessible data.
 - Recruitment mail advances an application only after a high-confidence multi-signal match; ambiguous messages stay in the user's review queue.
+- Mail is minimised before anything else happens: a deterministic filter (known recruiting and job-alert senders, employers the user applied to, recruitment keywords) decides which messages are fetched in full, sent to an AI provider or stored; other mail is skipped and only its id is kept. One message that fails classification never blocks the sync. PLAN.md task 2.6 brings the current code in line.
+- Emails, job postings and pasted text are untrusted data: prompts delimit them and tell the model never to follow instructions inside them, and mail from free-mail senders never moves an application. PLAN.md task 2.6 brings the current code in line.
 - Job boards (LinkedIn, Indeed and others whose terms forbid automated access) are never fetched, scraped or automated by the server, the worker or the extension. Their roles enter only through the user's own alert emails or text the user pastes, and are matched to the employer's own posting where possible. PLAN.md task 2.5 brings the current code in line.
 - Submission follows the supervised-autopilot policy in STRATEGY.md: nothing is submitted without the user's approval (per application or per batch); automatic submission is opt-in, limited to allowlisted channels whose terms permit it, capped per day and never used for LinkedIn; CAPTCHAs and security checks always go to the user; visa, salary and legal answers come only from the user's own answer bank; every submission is written to an append-only log with proof.
 - The product is role- and country-agnostic: no logic is tied to one profession or market, and country specifics (visa and sponsor data, CV conventions, languages) live in separate modules.
