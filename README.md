@@ -2,6 +2,14 @@
 
 An open-source, self-hosted career workspace for evidence-led job discovery, assisted applications, ATS resumes, recruitment-email tracking, and UK sponsor checks.
 
+## Where it's going
+
+Nexus is growing into an honest job-search agent for any role (working name "Job Seeker Mate"). It will find roles
+across every source, tailor each application using only facts you have verified, send the applications you approve,
+track replies and draft follow-ups, and show visa sponsorship status. It will never automate LinkedIn or other job boards,
+and never misstate your experience. [STRATEGY.md](STRATEGY.md) explains the direction and [PLAN.md](PLAN.md) the build
+plan.
+
 ## Product boundaries
 
 - Candidates make the final submission on each employer's official portal.

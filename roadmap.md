@@ -28,6 +28,15 @@ The step-by-step plan for what's left is in [PLAN.md](PLAN.md).
 - [x] Insights (funnel, response rate, days to reply, career gaps) and Needs-your-decision queue with email linking
 - [x] Settings: export and delete account; backup/restore docs
 - [x] Standalone: own Supabase, any OpenAI-compatible AI, direct Google OAuth + Gmail API, Firecrawl API, plain Vite build — no Lovable services
-- [ ] Real Gmail walk-through — blocked on your Google consent in the preview
-- [ ] Gmail live push activation — blocked until the Google Pub/Sub topic and authenticated push subscription are configured
-- [ ] Later: Arabic RTL toggle
+- [x] Direction set from a market review: an honest, cross-platform job-search agent for any role ([STRATEGY.md](STRATEGY.md))
+- [ ] Real Gmail walk-through (PLAN.md 3.4)
+- [ ] Gmail live push (PLAN.md Phase 4)
+- [ ] Board-safe job intake: no server-side fetching of LinkedIn or other job boards (PLAN.md 2.5)
+- [ ] Search profiles for any role, CV variants and an answer bank (Phase 5)
+- [ ] Supervised autopilot: daily queue, batch approval, proof of every submission (Phase 6)
+- [ ] Browser extension for application forms (Phase 7)
+- [ ] Follow-ups, daily and weekly digests, approvals in a messaging app, outcome analytics (Phase 8)
+- [ ] Visa and mobility data beyond the UK (Phase 9)
+- [ ] Arabic-first interface, and Arabic and Gulf CVs (Phase 10)
+- [ ] MCP server, Claude connector and ChatGPT app (Phase 11)
+- [ ] Hosted version with data-protection compliance, billing and institution seats (Phase 12)
