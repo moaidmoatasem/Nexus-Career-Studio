@@ -88,8 +88,9 @@ only used on the server; **Disconnect** revokes it at Google.
 **Automatic updates (optional).** Create a Pub/Sub topic, give `gmail-api-push@system.gserviceaccount.com` the
 Pub/Sub Publisher role on it, and add a push subscription to `https://<your-domain>/api/public/gmail-push` with
 authentication enabled for a service account. Then set `GMAIL_PUBSUB_TOPIC` (`projects/<project>/topics/<topic>`) and
-`GMAIL_PUBSUB_SERVICE_ACCOUNT` (that service account's email; the endpoint rejects every push without it). Set
-`GMAIL_PUBSUB_AUDIENCE` only if the subscription's audience isn't the endpoint URL. Without push, the background
+`GMAIL_PUBSUB_SERVICE_ACCOUNT` (that service account's email; the endpoint rejects every push without it). The expected token audience is
+`GMAIL_PUBSUB_AUDIENCE`, else `$APP_URL/api/public/gmail-push` (so it stays `https://` behind a TLS proxy); set
+`GMAIL_PUBSUB_AUDIENCE` only if the subscription's audience is something else. Without push, the background
 agent still checks the inbox on its schedule.
 
 ## 6. Run with Docker Compose (recommended)

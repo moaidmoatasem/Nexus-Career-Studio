@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { expectedPushAudience } from "@/lib/gmailPushAudience";
 
 type PushEnvelope = { message?: { data?: string; messageId?: string }; subscription?: string };
 
@@ -20,9 +21,10 @@ async function verifyGoogleIdentity(request: Request, expectedEmail: string) {
     email_verified?: string;
     iss?: string;
   };
-  const audience =
-    process.env["GMAIL_PUBSUB_AUDIENCE"] ??
-    new URL(request.url).origin + new URL(request.url).pathname;
+  const audience = expectedPushAudience(request.url, {
+    GMAIL_PUBSUB_AUDIENCE: process.env["GMAIL_PUBSUB_AUDIENCE"],
+    APP_URL: process.env["APP_URL"],
+  });
   const issuerOk =
     claims.iss === "https://accounts.google.com" || claims.iss === "accounts.google.com";
   return (
