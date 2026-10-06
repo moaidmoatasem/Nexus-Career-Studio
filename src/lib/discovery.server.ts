@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { AtsPostingGone, fetchAtsFacts, parseAtsPosting, type AtsFacts } from "./atsApis.server";
-import { assertNotJobBoard, hostIs, isJobBoardUrl } from "./jobSources";
+import { assertNotJobBoard, canonicalBoardLink, hostIs, isJobBoardUrl } from "./jobSources";
 
 const extractedJobSchema = z.object({
   title: z.string().trim().min(2),
@@ -27,7 +27,8 @@ export type ExtractedJob = z.infer<typeof extractedJobSchema> & {
   source_record_id: string;
   /** Null when the text did not come from the employer's own page (pasted text). */
   verified_at: string | null;
-  lifecycle_status: "active";
+  /** "unknown" for leads read from an alert email, which are not verified against a posting. */
+  lifecycle_status: "active" | "unknown";
   extraction_provenance: Record<string, string>;
 };
 
@@ -90,6 +91,11 @@ function firecrawl(path: "/v2/search" | "/v2/scrape", body: unknown) {
 }
 
 export function canonicalizeJobUrl(raw: string) {
+  // A board posting has one stable link, however many tracking parameters an email adds.
+  if (isJobBoardUrl(raw)) {
+    const board = canonicalBoardLink(raw);
+    if (board) return board;
+  }
   const url = new URL(raw);
   url.hash = "";
   for (const key of [...url.searchParams.keys()]) {

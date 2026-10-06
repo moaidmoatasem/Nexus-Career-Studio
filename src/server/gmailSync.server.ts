@@ -1,5 +1,5 @@
 import { AiError } from "@/lib/ai.server";
-import { classifyRecruitmentEmail } from "@/lib/email-classifier.server";
+import { classifyRecruitmentEmail, type EmailClassification } from "@/lib/email-classifier.server";
 import { jobLinks, mailSourceKind, matchApplication } from "@/lib/mailMatch";
 import { isSubmittedStage, nextStageFromEmail, stageForEmail } from "@/lib/stages";
 import { gmailFetch, GmailReconnectError, hasGmailConnection } from "./gmailApi.server";
@@ -239,39 +239,74 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
         processed += 1;
         continue;
       }
-      const classification = await classifyRecruitmentEmail({ sender, subject, body });
+      // Job-alert mail is not recruiter mail: it is never classified for an application match.
+      const classification: EmailClassification =
+        kind === "recruiter"
+          ? await classifyRecruitmentEmail({ sender, subject, body })
+          : {
+              status: "informational",
+              company_name: "",
+              confidence: 0,
+              scheduling_url: null,
+              action_summary: "",
+            };
       let alertJobsAdded = 0;
       if (kind !== "recruiter") {
         const source = kind.replace("_alert", "");
         const { canonicalizeJobUrl, extractPublicJob, knownJobUrls, saveJobForUser } =
           await import("@/lib/discovery.server");
-        const links = [
-          ...new Set(
-            jobLinks(body).flatMap((url) => {
-              try {
-                return [canonicalizeJobUrl(url)];
-              } catch {
-                return [];
-              }
-            }),
-          ),
-        ];
-        const known = await knownJobUrls(supabaseAdmin, userId, links).catch(
-          () => new Set<string>(),
-        );
-        for (const url of links.filter((u) => !known.has(u))) {
-          try {
-            const saved = await saveJobForUser(
-              supabaseAdmin,
-              userId,
-              await extractPublicJob(url),
-              source,
-            );
+        if (kind === "linkedin_alert" || kind === "indeed_alert") {
+          // Board roles come only from the email's own text; the board is never opened.
+          const { extractAlertLeads } = await import("@/lib/alertLeads.server");
+          const leads = await extractAlertLeads({
+            sender,
+            subject,
+            body,
+            provider: kind === "linkedin_alert" ? "linkedin" : "indeed",
+          }).catch((error: unknown) => {
+            console.error("Alert email could not be read", error);
+            return [];
+          });
+          const known = await knownJobUrls(
+            supabaseAdmin,
+            userId,
+            leads.map((lead) => lead.canonical_url),
+          ).catch(() => new Set<string>());
+          for (const lead of leads.filter((l) => !known.has(l.canonical_url))) {
+            const saved = await saveJobForUser(supabaseAdmin, userId, lead, source);
             if (saved.status === "added") alertJobsAdded += 1;
             else if (saved.status === "failed")
-              console.error("Alert role could not be saved", saved.error);
-          } catch {
-            /* Private, expired, or blocked alert links are not imported. */
+              console.error("Alert lead could not be saved", saved.error);
+          }
+        } else {
+          const links = [
+            ...new Set(
+              jobLinks(body).flatMap((url) => {
+                try {
+                  return [canonicalizeJobUrl(url)];
+                } catch {
+                  return [];
+                }
+              }),
+            ),
+          ];
+          const known = await knownJobUrls(supabaseAdmin, userId, links).catch(
+            () => new Set<string>(),
+          );
+          for (const url of links.filter((u) => !known.has(u))) {
+            try {
+              const saved = await saveJobForUser(
+                supabaseAdmin,
+                userId,
+                await extractPublicJob(url),
+                source,
+              );
+              if (saved.status === "added") alertJobsAdded += 1;
+              else if (saved.status === "failed")
+                console.error("Alert role could not be saved", saved.error);
+            } catch {
+              /* Private, expired, or blocked alert links are not imported. */
+            }
           }
         }
         await supabaseAdmin.from("source_connections").upsert(
@@ -289,7 +324,10 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
           await supabaseAdmin.from("application_events").insert({
             user_id: userId,
             event_type: "roles_discovered",
-            title: `${alertJobsAdded} verified role${alertJobsAdded === 1 ? "" : "s"} imported from ${source}`,
+            title:
+              kind === "workday_alert"
+                ? `${alertJobsAdded} verified role${alertJobsAdded === 1 ? "" : "s"} imported from ${source}`
+                : `${alertJobsAdded} lead${alertJobsAdded === 1 ? "" : "s"} from your ${source} alert`,
             source: "gmail",
           });
       }
@@ -373,7 +411,7 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
           action_summary:
             kind === "recruiter"
               ? classification.action_summary
-              : `${alertJobsAdded} verified posting${alertJobsAdded === 1 ? "" : "s"} imported`,
+              : `${alertJobsAdded} ${kind === "workday_alert" ? "verified posting" : "lead"}${alertJobsAdded === 1 ? "" : "s"} imported`,
           match_reason: app ? (match?.reason ?? null) : null,
           provider_history_id: message.historyId ?? null,
           processed_at: new Date().toISOString(),

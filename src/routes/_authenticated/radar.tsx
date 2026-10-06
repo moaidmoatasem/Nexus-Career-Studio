@@ -297,6 +297,15 @@ function RadarPage() {
                   <Badge variant="outline" className="capitalize">
                     {job.source.replaceAll("_", " ")}
                   </Badge>
+                  {!job.description && (
+                    <Badge
+                      variant="outline"
+                      className="text-warning"
+                      title="Listed in your alert email. Open the posting, then paste its text with “Paste job link” to score it."
+                    >
+                      Lead · paste the job text
+                    </Badge>
+                  )}
                   <span>
                     {new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(
                       Math.round((new Date(job.discovered_at).getTime() - Date.now()) / 86_400_000),

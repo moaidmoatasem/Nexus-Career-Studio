@@ -88,3 +88,23 @@ export class JobBoardError extends Error {
 export function assertNotJobBoard(raw: string): void {
   if (isJobBoardUrl(raw)) throw new JobBoardError();
 }
+
+/**
+ * One stable link per board posting, so the same role from an alert email, a second alert or a
+ * pasted link is recognised as one. LinkedIn: /jobs/view/<id>; Indeed: /viewjob?jk=<id>. The
+ * link is only ever stored for the user to open; it is never fetched.
+ */
+export function canonicalBoardLink(raw: string): string {
+  const url = new URL(raw);
+  url.hash = "";
+  const host = url.hostname.toLowerCase();
+  if (labels(host).includes("linkedin")) {
+    const id = /\/jobs\/view\/(?:[^/?#]*?-)?(\d{5,})/.exec(url.pathname)?.[1];
+    if (id) return `https://www.linkedin.com/jobs/view/${id}`;
+  }
+  if (labels(host).includes("indeed")) {
+    const jk = url.searchParams.get("jk");
+    if (jk && /^[0-9a-f]{8,32}$/i.test(jk)) return `https://${host}/viewjob?jk=${jk}`;
+  }
+  return "";
+}
