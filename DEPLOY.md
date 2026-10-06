@@ -108,9 +108,9 @@ docker run -d --env-file .env -p 3000:3000 --restart unless-stopped nexus
 ```sh
 bun install
 bun run build                 # builds a Node server; set NITRO_PRESET to target another host
-node .output/server/index.mjs
+node --env-file=.env .output/server/index.mjs   # the built server does not read .env by itself
 ```
-`bun run dev` starts a development server on port 8080.
+`bun run dev` starts a development server on port 3000.
 
 ## Database updates
 Apply new files in `supabase/migrations/` after every upgrade: `npx supabase db push`.
