@@ -48,6 +48,7 @@ describe("generateStructured", () => {
     handler = () => reply('{"status":"offer","confidence":0.9}');
     await expect(
       generateStructured({
+        userId: "u1",
         instructions: "Classify.",
         prompt: "We'd like to offer you the role.",
         schema,
@@ -71,7 +72,12 @@ describe("generateStructured", () => {
           }
         : reply('{"status":"rejection","confidence":0.8}');
     await expect(
-      generateStructured({ instructions: "Classify.", prompt: "Unfortunately…", schema }),
+      generateStructured({
+        userId: "u1",
+        instructions: "Classify.",
+        prompt: "Unfortunately…",
+        schema,
+      }),
     ).resolves.toEqual({ status: "rejection", confidence: 0.8 });
     expect(seen.map((r) => (r["response_format"] as { type: string }).type)).toEqual([
       "json_schema",
@@ -80,7 +86,9 @@ describe("generateStructured", () => {
   });
   it("accepts fenced replies and drops <think> blocks", async () => {
     handler = () => reply('<think>hmm</think>\n```json\n{"status":"offer","confidence":1}\n```');
-    await expect(generateStructured({ instructions: "x", prompt: "y", schema })).resolves.toEqual({
+    await expect(
+      generateStructured({ userId: "u1", instructions: "x", prompt: "y", schema }),
+    ).resolves.toEqual({
       status: "offer",
       confidence: 1,
     });
@@ -88,17 +96,17 @@ describe("generateStructured", () => {
   it("maps provider errors to clear messages", async () => {
     handler = () => ({ status: 401, json: { error: { message: "bad key" } } });
     await expect(
-      generateStructured({ instructions: "x", prompt: "y", schema }),
+      generateStructured({ userId: "u1", instructions: "x", prompt: "y", schema }),
     ).rejects.toMatchObject({ status: 403 });
     handler = () => ({ status: 429, json: {} });
     await expect(
-      generateStructured({ instructions: "x", prompt: "y", schema }),
+      generateStructured({ userId: "u1", instructions: "x", prompt: "y", schema }),
     ).rejects.toMatchObject({ status: 429 });
   });
   it("rejects replies that don't match the schema", async () => {
     handler = () => reply('{"status":"maybe","confidence":"high"}');
     await expect(
-      generateStructured({ instructions: "x", prompt: "y", schema }),
+      generateStructured({ userId: "u1", instructions: "x", prompt: "y", schema }),
     ).rejects.toBeInstanceOf(AiError);
   });
   it("works without an API key for local servers and honours AI_RESPONSE_FORMAT", async () => {
@@ -106,7 +114,7 @@ describe("generateStructured", () => {
     delete process.env["AI_API_KEY"];
     process.env["AI_RESPONSE_FORMAT"] = "none";
     handler = () => reply('{"status":"offer","confidence":0.5}');
-    await generateStructured({ instructions: "x", prompt: "y", schema });
+    await generateStructured({ userId: "u1", instructions: "x", prompt: "y", schema });
     expect(seen[0]?.["_auth"]).toBeNull();
     expect(seen[0]).not.toHaveProperty("response_format");
     process.env["AI_API_KEY"] = key;
@@ -115,7 +123,7 @@ describe("generateStructured", () => {
     const base = process.env["AI_BASE_URL"];
     delete process.env["AI_BASE_URL"];
     await expect(
-      generateStructured({ instructions: "x", prompt: "y", schema }),
+      generateStructured({ userId: "u1", instructions: "x", prompt: "y", schema }),
     ).rejects.toMatchObject({ status: 503 });
     process.env["AI_BASE_URL"] = base;
   });

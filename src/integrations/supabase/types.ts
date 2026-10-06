@@ -891,6 +891,27 @@ export type Database = {
           },
         ]
       }
+      usage_counters: {
+        Row: {
+          count: number
+          day: string
+          kind: string
+          user_id: string
+        }
+        Insert: {
+          count?: number
+          day: string
+          kind: string
+          user_id: string
+        }
+        Update: {
+          count?: number
+          day?: string
+          kind?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       vault_items: {
         Row: {
           category: string
@@ -979,6 +1000,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      consume_usage: {
+        Args: { p_kind: string; p_limit: number; p_user: string }
+        Returns: boolean
       }
       match_sponsor_company_v3: {
         Args: { max_results?: number; search_term: string; threshold?: number }

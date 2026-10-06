@@ -32,8 +32,9 @@ export class JobTextError extends Error {}
 export type JobFacts = z.infer<typeof pastedJobSchema>;
 
 /** Reads the facts a posting's text states; the text is delimited and treated as untrusted data. */
-export function readJobFacts(text: string): Promise<JobFacts> {
+export function readJobFacts(userId: string, text: string): Promise<JobFacts> {
   return generateStructured({
+    userId,
     instructions: INSTRUCTIONS,
     prompt: buildJobTextPrompt(text),
     schema: pastedJobSchema,
@@ -45,11 +46,15 @@ export function readJobFacts(text: string): Promise<JobFacts> {
  * not the model's rewording, so nothing in it can be invented. `link` is only a reference for the
  * user to open; it is never fetched.
  */
-export async function extractJobFromText(rawText: string, link?: string): Promise<ExtractedJob> {
+export async function extractJobFromText(
+  userId: string,
+  rawText: string,
+  link?: string,
+): Promise<ExtractedJob> {
   const text = rawText.trim().slice(0, MAX_JOB_TEXT);
   if (text.length < MIN_JOB_TEXT)
     throw new JobTextError("Paste more of the job description so it can be read.");
-  const facts = await readJobFacts(text);
+  const facts = await readJobFacts(userId, text);
   const title = facts.title.trim();
   const company = facts.company_name.trim();
   if (title.length < 2 || company.length < 2)

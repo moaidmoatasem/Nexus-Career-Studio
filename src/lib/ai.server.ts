@@ -13,6 +13,13 @@ export class AiError extends Error {
   }
 }
 
+/** The user's daily cap (AI_DAILY_LIMIT or FIRECRAWL_DAILY_LIMIT) is used up. Not a provider failure. */
+export class UsageLimitError extends AiError {
+  constructor(message: string) {
+    super(message, 429);
+  }
+}
+
 type ResponseFormat = "json_schema" | "json_object" | "none";
 const FORMATS: ResponseFormat[] = ["json_schema", "json_object", "none"];
 
@@ -81,6 +88,8 @@ export function parseJsonReply(content: string): unknown {
 
 /** Calls the model and returns an object validated against `schema`. */
 export async function generateStructured<T>(opts: {
+  /** Whose daily AI cap this call counts against; required so no caller can skip it. */
+  userId: string;
   instructions: string;
   prompt: string;
   schema: z.ZodType<T>;
@@ -91,6 +100,7 @@ export async function generateStructured<T>(opts: {
       "AI is not configured. Set AI_BASE_URL and AI_MODEL (and AI_API_KEY for a hosted provider).",
       503,
     );
+  await (await import("./usage.server")).consumeUsage(opts.userId, "ai");
   const jsonSchema = z.toJSONSchema(opts.schema) as Record<string, unknown>;
   delete jsonSchema["$schema"];
   // The schema also goes in the instructions so models that ignore response_format still follow it.

@@ -38,7 +38,9 @@ cp .env.example .env
 openssl rand -base64 32   # → APP_USER_CONNECTION_KEY_SECRET (encrypts stored Gmail tokens)
 openssl rand -hex 32      # → AGENT_TICK_SECRET (protects the scheduler endpoint)
 ```
-Set `ALLOWED_EMAILS` to a comma-separated list of addresses or `@domain` entries (empty allows anyone who can sign in).
+Set `AI_DAILY_LIMIT` and `FIRECRAWL_DAILY_LIMIT` to cap each user's AI calls and Firecrawl requests per day (UTC);
+over the cap a call fails with "Daily AI limit reached; it resets at midnight UTC", and the inbox sync waits for the
+reset without losing mail. Empty means unlimited. Set `ALLOWED_EMAILS` to a comma-separated list of addresses or `@domain` entries (empty allows anyone who can sign in).
 Set `APP_URL` to the address people use to open the app, without a trailing slash (for example
 `https://nexus.example.com`). Keep `.env` out of git.
 

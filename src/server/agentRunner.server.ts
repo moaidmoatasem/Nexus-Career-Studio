@@ -3,7 +3,7 @@ import type { Json } from "@/integrations/supabase/types";
 // with the browser closed. Each user is processed under a lease so parallel
 // ticks never double-run work. Every action is written to agent_activity.
 import { isEmailAllowed, parseAllowlist } from "@/lib/allowlist";
-import { AiError } from "@/lib/ai.server";
+import { AiError, UsageLimitError } from "@/lib/ai.server";
 import { PAUSED_MESSAGE, registerGmailWatch, syncGmailForUser } from "./gmailSync.server";
 
 type Admin = Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"];
@@ -134,6 +134,10 @@ async function runForUser(db: Admin, userId: string, policy: string) {
     // A sync paused by a rejected AI key is retried once a day, not every run.
     const r = await syncGmailForUser(userId, 25, { retryPausedAfterMs: 24 * 3600_000 }).catch(
       async (error: unknown) => {
+        if (error instanceof UsageLimitError) {
+          await log(db, userId, "process_gmail_history", "skipped", error.message, policy);
+          return null;
+        }
         if (!(error instanceof AiError) || ![402, 403].includes(error.status)) throw error;
         await log(db, userId, "process_gmail_history", "needs_you", PAUSED_MESSAGE, policy);
         return null;
@@ -238,6 +242,7 @@ export function checkConfiguration() {
     gmailLiveUpdates: has("GMAIL_PUBSUB_TOPIC") && has("GMAIL_PUBSUB_SERVICE_ACCOUNT"),
     scheduler: has("AGENT_TICK_SECRET"),
     privateInstance: has("ALLOWED_EMAILS"),
+    dailyLimits: has("AI_DAILY_LIMIT") || has("FIRECRAWL_DAILY_LIMIT"),
   };
 }
 

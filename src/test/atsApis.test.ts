@@ -260,7 +260,10 @@ describe("extractPublicJob with the ATS APIs", () => {
       if (url.startsWith("https://boards-api.greenhouse.io/")) return json(GREENHOUSE_JOB);
       throw new Error(`unexpected request to ${url}`);
     }) as typeof fetch);
-    const job = await extractPublicJob("https://boards.greenhouse.io/acme/jobs/4012345?gh_src=x");
+    const job = await extractPublicJob(
+      "u1",
+      "https://boards.greenhouse.io/acme/jobs/4012345?gh_src=x",
+    );
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(job).toMatchObject({
       title: "Senior Data Engineer",
@@ -276,16 +279,16 @@ describe("extractPublicJob with the ATS APIs", () => {
     expect(job.extraction_provenance["method"]).toBe("ats_public_api");
     expect(job.verified_at).not.toBeNull();
     // The model reads the posting text, and its title, employer and location never replace the API's.
-    expect(readJobFacts.mock.calls[0]![0]).toContain("Senior Data Engineer");
+    expect(readJobFacts.mock.calls[0]![1]).toContain("Senior Data Engineer");
   });
 
   it("fails clearly when the employer's board no longer lists the posting", async () => {
     fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation((async () => json({}, 404)) as typeof fetch);
-    await expect(extractPublicJob("https://boards.greenhouse.io/acme/jobs/1")).rejects.toThrow(
-      /no longer open/,
-    );
+    await expect(
+      extractPublicJob("u1", "https://boards.greenhouse.io/acme/jobs/1"),
+    ).rejects.toThrow(/no longer open/);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -312,7 +315,7 @@ describe("extractPublicJob with the ATS APIs", () => {
       if (url.endsWith("/v2/scrape")) return json(scraped);
       throw new Error(`unexpected request to ${url}`);
     }) as typeof fetch);
-    const job = await extractPublicJob("https://boards.greenhouse.io/acme/jobs/9");
+    const job = await extractPublicJob("u1", "https://boards.greenhouse.io/acme/jobs/9");
     expect(job.extraction_provenance["method"]).toBe("firecrawl_json_schema");
   });
 
@@ -322,7 +325,7 @@ describe("extractPublicJob with the ATS APIs", () => {
       if (url.endsWith("/v2/scrape")) return json({ json: { title: "x", company_name: "y" } });
       throw new Error(`unexpected request to ${url}`);
     }) as typeof fetch);
-    await expect(extractPublicJob("https://careers.example.com/jobs/1")).rejects.toThrow();
+    await expect(extractPublicJob("u1", "https://careers.example.com/jobs/1")).rejects.toThrow();
     const urls = (fetchSpy.mock.calls as unknown[][]).map((c) => String(c[0]));
     expect(urls.every((u: string) => u.endsWith("/v2/scrape"))).toBe(true);
   });

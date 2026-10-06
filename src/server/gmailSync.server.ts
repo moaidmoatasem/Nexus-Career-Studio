@@ -1,4 +1,4 @@
-import { AiError } from "@/lib/ai.server";
+import { AiError, UsageLimitError } from "@/lib/ai.server";
 import { classifyRecruitmentEmail, type EmailClassification } from "@/lib/email-classifier.server";
 import { assessMailRisk, shouldFetchMessage } from "@/lib/mailFilter";
 import { jobLinks, mailSourceKind, matchApplication } from "@/lib/mailMatch";
@@ -316,7 +316,7 @@ export async function syncGmailForUser(
       // Job-alert mail is not recruiter mail: it is never classified for an application match.
       const classification: EmailClassification =
         kind === "recruiter"
-          ? await classifyRecruitmentEmail({ sender, subject, body })
+          ? await classifyRecruitmentEmail({ userId, sender, subject, body })
           : {
               status: "informational",
               company_name: "",
@@ -333,6 +333,7 @@ export async function syncGmailForUser(
           // Board roles come only from the email's own text; the board is never opened.
           const { extractAlertLeads } = await import("@/lib/alertLeads.server");
           const leads = await extractAlertLeads({
+            userId,
             sender,
             subject,
             body,
@@ -372,7 +373,7 @@ export async function syncGmailForUser(
               const saved = await saveJobForUser(
                 supabaseAdmin,
                 userId,
-                await extractPublicJob(url),
+                await extractPublicJob(userId, url),
                 source,
               );
               if (saved.status === "added") alertJobsAdded += 1;
@@ -525,6 +526,8 @@ export async function syncGmailForUser(
       } catch (error) {
         // Reconnect and AI-key problems affect every message, so they stop the sync as before.
         if (error instanceof GmailReconnectError) throw error;
+        // A used-up daily cap is not the message's fault: stop here and pick it up after the reset.
+        if (error instanceof UsageLimitError) throw error;
         if (error instanceof AiError && [402, 403].includes(error.status)) throw error;
         // One bad message never blocks the rest: retry it next sync, then skip it for good.
         const attempts = (failedBefore.get(id) ?? 0) + 1;

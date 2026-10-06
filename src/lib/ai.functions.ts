@@ -51,6 +51,7 @@ export const extractVault = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<Result<{ count: number }>> => {
     try {
       const out = await generateStructured({
+        userId: context.userId,
         instructions:
           "You are a Master Career Vault extractor. Convert resume text into structured items. Copy quantitative metrics VERBATIM from the source into `metrics`; never invent numbers, tools or skills. Use empty strings when a field is absent. Preserve Arabic text in NFC form.",
         prompt: `Resume text:\n"""\n${data.text.normalize("NFC")}\n"""`,
@@ -117,6 +118,7 @@ export const synthesizePack = createServerFn({ method: "POST" })
         skills: v.skills,
       }));
       const out = await generateStructured({
+        userId: context.userId,
         instructions:
           "You are an ATS resume optimizer enforcing reference binding. Every bullet MUST cite an existing vault_item_id from the provided vault. `verified_metrics` may only contain strings copied verbatim from that item's metrics. Never invent metrics, employers, tools or skills. Every number you write — in bullets, the cover letter and the outreach note — must appear in the vault data, the candidate's stated years of experience, or the job posting; never estimate or round. Write 4–6 bullets, a 3-paragraph cover letter, and a recruiter outreach note of at most 75 words.",
         prompt: `Candidate: ${profile?.full_name || "Candidate"}\nYears of experience: ${profile?.years_experience ?? "not stated"}\nJob: ${job.title} at ${job.company_name}\nRequired: ${job.required_skills.join(", ")}\nPreferred: ${job.preferred_skills.join(", ")}\nDescription: ${job.description}\n\nCareer Vault (JSON):\n${JSON.stringify(vaultForPrompt)}`,
@@ -200,7 +202,7 @@ export const classifyEmail = createServerFn({ method: "POST" })
       Result<EmailClassification & { movedApplicationId: string | null; matchNote: string }>
     > => {
       try {
-        const out = await classifyRecruitmentEmail(data);
+        const out = await classifyRecruitmentEmail({ ...data, userId: context.userId });
         // Same rules as Gmail sync: employer AND role must both be named, and the classifier must be confident.
         const { data: apps, error } = await context.supabase
           .from("applications")
