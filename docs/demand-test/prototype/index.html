@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus prototype · made-up data</title>
+<style>
+  :root {
+    --bg:#f6f4ef; --card:#fff; --ink:#1d2430; --muted:#5d6675; --line:#dedacf;
+    --accent:#0f6b5c; --accent-ink:#fff; --warn:#a15c00; --ok:#0f6b5c; --bad:#a3341f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14181f; --card:#1d232d; --ink:#eef0f3; --muted:#a5adba; --line:#323a47;
+            --accent:#4cc2ac; --accent-ink:#0b1a17; --warn:#e0a24a; --ok:#4cc2ac; --bad:#ef8a76; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif; }
+  .wrap { max-width:520px; margin:0 auto; padding:0 16px 40px; }
+  .banner { background:var(--warn); color:#fff; text-align:center; font-size:13px; padding:6px 12px; }
+  header { display:flex; justify-content:space-between; align-items:center; padding:14px 0 6px; gap:8px; }
+  h1 { font-size:18px; margin:0; }
+  nav { display:flex; gap:6px; margin:6px 0 14px; }
+  nav button, .lang, .btn { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--ink);
+    border-radius:10px; padding:8px 12px; cursor:pointer; }
+  nav button { flex:1; font-size:14px; }
+  nav button[aria-current="true"] { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin:0 0 12px; }
+  .row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .muted { color:var(--muted); font-size:14px; }
+  .pill { display:inline-block; font-size:12px; border:1px solid var(--line); border-radius:999px; padding:1px 8px; color:var(--muted); }
+  .pill.ok { color:var(--ok); border-color:var(--ok); }
+  .pill.warn { color:var(--warn); border-color:var(--warn); }
+  .btn.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .big { font-size:28px; font-weight:700; line-height:1.1; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+  blockquote { margin:8px 0; padding:8px 12px; border-inline-start:3px solid var(--line); color:var(--muted); font-size:15px; }
+  ol.timeline { list-style:none; margin:0; padding:0; }
+  ol.timeline li { padding:10px 0; border-top:1px solid var(--line); }
+  ol.timeline li:first-child { border-top:0; }
+  .screen { display:none; } .screen.on { display:block; }
+  .note { font-size:13px; color:var(--muted); margin-top:18px; }
+  [data-lang="ar"] [lang="en"], [data-lang="en"] [lang="ar"] { display:none; }
+  button:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+</style>
+</head>
+<body data-lang="en">
+<div class="banner" role="note">
+  <span lang="en">Prototype · made-up people and companies · nothing here is built or sent</span>
+  <span lang="ar">نموذج تجريبي · أشخاص وشركات من وحي الخيال · لا شيء هنا مبنيّ أو مُرسَل</span>
+</div>
+<div class="wrap">
+  <header>
+    <h1><span lang="en">Nexus</span><span lang="ar">نكسس</span></h1>
+    <button class="lang" id="lang" aria-label="Switch language">العربية</button>
+  </header>
+
+  <nav aria-label="Screens">
+    <button data-go="queue" aria-current="true"><span lang="en">Today</span><span lang="ar">اليوم</span></button>
+    <button data-go="approve"><span lang="en">Approve</span><span lang="ar">الموافقة</span></button>
+    <button data-go="replies"><span lang="en">Replies</span><span lang="ar">الردود</span></button>
+  </nav>
+
+  <!-- 1. Today's queue -->
+  <section class="screen on" id="queue" aria-labelledby="q-h">
+    <h2 id="q-h" style="font-size:17px;margin:4px 0 10px">
+      <span lang="en">Good morning. Here is your day.</span><span lang="ar">صباح الخير. هذا يومك.</span></h2>
+    <div class="grid">
+      <div class="card"><div class="big">3</div>
+        <div class="muted"><span lang="en">applications ready for your approval</span><span lang="ar">طلبات جاهزة لموافقتك</span></div></div>
+      <div class="card"><div class="big">1</div>
+        <div class="muted"><span lang="en">new reply to look at</span><span lang="ar">ردّ جديد يستحق النظر</span></div></div>
+    </div>
+
+    <div class="card">
+      <div class="row"><strong><span lang="en">Operations Coordinator</span><span lang="ar">منسّق عمليات</span></strong>
+        <span class="pill ok"><span lang="en">Strong fit</span><span lang="ar">مناسب جدًا</span></span></div>
+      <div class="muted"><span lang="en">Blue Nile Logistics · Cairo</span><span lang="ar">النيل الأزرق للخدمات اللوجستية · القاهرة</span></div>
+      <div class="btns"><button class="btn primary" data-go="approve"><span lang="en">Review</span><span lang="ar">راجِع</span></button>
+        <button class="btn"><span lang="en">Skip</span><span lang="ar">تخطَّ</span></button></div>
+    </div>
+    <div class="card">
+      <div class="row"><strong><span lang="en">Customer Success Associate</span><span lang="ar">مساعد نجاح العملاء</span></strong>
+        <span class="pill ok"><span lang="en">Good fit</span><span lang="ar">مناسب</span></span></div>
+      <div class="muted"><span lang="en">Palm Harbour Bank · Dubai</span><span lang="ar">بنك ميناء النخيل · دبي</span></div>
+      <div class="btns"><button class="btn primary" data-go="approve"><span lang="en">Review</span><span lang="ar">راجِع</span></button>
+        <button class="btn"><span lang="en">Skip</span><span lang="ar">تخطَّ</span></button></div>
+    </div>
+    <div class="card">
+      <div class="row"><strong><span lang="en">Finance Analyst</span><span lang="ar">محلل مالي</span></strong>
+        <span class="pill warn"><span lang="en">Check visa rules</span><span lang="ar">تحقق من شروط التأشيرة</span></span></div>
+      <div class="muted"><span lang="en">Desert Rose Retail · Riyadh</span><span lang="ar">الوردة الصحراوية للتجزئة · الرياض</span></div>
+      <div class="btns"><button class="btn primary" data-go="approve"><span lang="en">Review</span><span lang="ar">راجِع</span></button>
+        <button class="btn"><span lang="en">Skip</span><span lang="ar">تخطَّ</span></button></div>
+    </div>
+    <p class="muted"><span lang="en">Nothing is sent until you approve it.</span><span lang="ar">لا يُرسَل شيء قبل موافقتك.</span></p>
+  </section>
+
+  <!-- 2. Approve an application -->
+  <section class="screen" id="approve" aria-labelledby="a-h">
+    <h2 id="a-h" style="font-size:17px;margin:4px 0 4px">
+      <span lang="en">Operations Coordinator · Blue Nile Logistics</span><span lang="ar">منسّق عمليات · النيل الأزرق للخدمات اللوجستية</span></h2>
+    <p class="muted" style="margin-top:0"><span lang="en">Prepared for you. Check it, change anything, then decide.</span><span lang="ar">جُهّز لك. راجعه وعدّل ما تشاء ثم قرّر.</span></p>
+
+    <div class="card">
+      <strong><span lang="en">Your CV for this role</span><span lang="ar">سيرتك الذاتية لهذه الوظيفة</span></strong>
+      <div class="muted"><span lang="en">Variant: “Operations”. Every line comes from your own records.</span><span lang="ar">النسخة: «العمليات». كل سطر مأخوذ من سجلاتك أنت.</span></div>
+      <ul style="margin:8px 0 0;padding-inline-start:20px">
+        <li><span lang="en">Coordinated 14 weekly deliveries across 3 depots</span><span lang="ar">نسّقتُ 14 عملية توصيل أسبوعية بين 3 مستودعات</span>
+          <span class="pill ok"><span lang="en">from your records</span><span lang="ar">من سجلاتك</span></span></li>
+        <li><span lang="en">Cut average dispatch delays with a shared tracking sheet</span><span lang="ar">قلّلتُ تأخر الإرسال باستخدام جدول متابعة مشترك</span>
+          <span class="pill ok"><span lang="en">from your records</span><span lang="ar">من سجلاتك</span></span></li>
+      </ul>
+      <div class="muted" style="margin-top:8px"><span lang="en">Removed: “managed a team of 20”. Not in your records.</span><span lang="ar">حُذف: «أدرتُ فريقًا من 20 شخصًا». غير موجود في سجلاتك.</span></div>
+    </div>
+
+    <div class="card">
+      <strong><span lang="en">Cover letter</span><span lang="ar">رسالة التقديم</span></strong>
+      <blockquote><span lang="en">Dear hiring team, I coordinate daily deliveries and enjoy turning messy schedules into reliable ones. I would like to bring that to Blue Nile Logistics…</span>
+        <span lang="ar">السادة فريق التوظيف، أنسّق عمليات التوصيل اليومية وأحب تحويل الجداول الفوضوية إلى جداول يُعتمد عليها. وأودّ أن أقدّم ذلك لدى النيل الأزرق…</span></blockquote>
+    </div>
+
+    <div class="card">
+      <strong><span lang="en">Answers to the form</span><span lang="ar">إجابات النموذج</span></strong>
+      <div class="muted"><span lang="en">Taken from your own answer bank. Nexus never makes these up.</span><span lang="ar">مأخوذة من بنك إجاباتك. نكسس لا يخترعها أبدًا.</span></div>
+      <p style="margin:8px 0 0"><span lang="en">Notice period: 30 days · Expected salary: from your saved answer · Right to work: from your saved answer</span>
+        <span lang="ar">مدة الإشعار: 30 يومًا · الراتب المتوقع: من إجابتك المحفوظة · حق العمل: من إجابتك المحفوظة</span></p>
+    </div>
+
+    <div class="btns">
+      <button class="btn primary"><span lang="en">Approve and send</span><span lang="ar">وافق وأرسل</span></button>
+      <button class="btn"><span lang="en">Edit</span><span lang="ar">عدّل</span></button>
+      <button class="btn"><span lang="en">Skip</span><span lang="ar">تخطَّ</span></button>
+    </div>
+    <p class="muted"><span lang="en">You could also approve this from WhatsApp or Telegram with one tap.</span><span lang="ar">يمكنك أيضًا الموافقة من واتساب أو تيليجرام بلمسة واحدة.</span></p>
+  </section>
+
+  <!-- 3. Reply tracking -->
+  <section class="screen" id="replies" aria-labelledby="r-h">
+    <h2 id="r-h" style="font-size:17px;margin:4px 0 10px"><span lang="en">Where each application stands</span><span lang="ar">أين وصل كل طلب</span></h2>
+    <div class="card">
+      <div class="row"><strong><span lang="en">Customer Success Associate · Palm Harbour Bank</span><span lang="ar">مساعد نجاح العملاء · بنك ميناء النخيل</span></strong>
+        <span class="pill ok"><span lang="en">Interview</span><span lang="ar">مقابلة</span></span></div>
+      <ol class="timeline">
+        <li><span lang="en"><b>Reply found in your inbox.</b> They invited you to an interview next Tuesday.</span>
+            <span lang="ar"><b>وجدنا ردًا في بريدك.</b> دعتك الشركة إلى مقابلة يوم الثلاثاء القادم.</span>
+          <div class="muted"><span lang="en">Matched by employer and role. Added to your calendar file for you to open.</span><span lang="ar">رُبط بالطلب عبر اسم الشركة والوظيفة. أُضيف إلى ملف تقويم لتفتحه بنفسك.</span></div></li>
+        <li><span lang="en">Application sent · 6 days ago</span><span lang="ar">أُرسل الطلب · قبل 6 أيام</span></li>
+      </ol>
+    </div>
+    <div class="card">
+      <div class="row"><strong><span lang="en">Finance Analyst · Desert Rose Retail</span><span lang="ar">محلل مالي · الوردة الصحراوية للتجزئة</span></strong>
+        <span class="pill warn"><span lang="en">No reply · 7 days</span><span lang="ar">لا ردّ · 7 أيام</span></span></div>
+      <p style="margin:8px 0 0"><span lang="en">A follow-up is drafted for you. You send it from your own email.</span><span lang="ar">جُهّزت لك رسالة متابعة. ترسلها أنت من بريدك.</span></p>
+      <blockquote><span lang="en">Hello, I applied last week for the Finance Analyst role and wanted to confirm you received my application…</span>
+        <span lang="ar">مرحبًا، قدّمتُ الأسبوع الماضي على وظيفة محلل مالي وأردتُ التأكد من وصول طلبي…</span></blockquote>
+      <div class="btns"><button class="btn primary"><span lang="en">Open in my email</span><span lang="ar">افتحها في بريدي</span></button></div>
+    </div>
+    <div class="card">
+      <div class="row"><strong><span lang="en">An email that needs your decision</span><span lang="ar">بريد يحتاج قرارك</span></strong>
+        <span class="pill warn"><span lang="en">Possible scam</span><span lang="ar">احتمال احتيال</span></span></div>
+      <p style="margin:8px 0 0"><span lang="en">“Pay a visa processing fee to secure your place.” Sent from a free-mail address. Nexus did not change any application. Be careful.</span>
+        <span lang="ar">«ادفع رسوم معالجة التأشيرة لتأمين مكانك». أُرسلت من بريد مجاني. لم يغيّر نكسس أي طلب. كن حذرًا.</span></p>
+    </div>
+    <p class="muted"><span lang="en">Only job-related mail is read. Everything else in your inbox is skipped.</span><span lang="ar">يُقرأ فقط البريد المتعلق بالوظائف. أي شيء آخر في صندوقك يُتخطّى.</span></p>
+  </section>
+
+  <p class="note"><span lang="en">Made-up candidate, companies and messages, shown to test an idea. Not a real product.</span>
+    <span lang="ar">مرشّح وشركات ورسائل من وحي الخيال، تُعرض لاختبار فكرة. هذا ليس منتجًا حقيقيًا.</span></p>
+</div>
+<script>
+  var body = document.body;
+  function show(id) {
+    document.querySelectorAll(".screen").forEach(function (s) { s.classList.toggle("on", s.id === id); });
+    document.querySelectorAll("nav button").forEach(function (b) { b.setAttribute("aria-current", String(b.dataset.go === id)); });
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll("[data-go]").forEach(function (b) { b.addEventListener("click", function () { show(b.dataset.go); }); });
+  document.getElementById("lang").addEventListener("click", function () {
+    var ar = body.dataset.lang !== "ar";
+    body.dataset.lang = ar ? "ar" : "en";
+    document.documentElement.lang = ar ? "ar" : "en";
+    document.documentElement.dir = ar ? "rtl" : "ltr";
+    this.textContent = ar ? "English" : "العربية";
+  });
+</script>
+</body>
+</html>

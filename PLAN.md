@@ -228,7 +228,7 @@ Runs now, alongside Track N. No real user data is collected or hosted until Gate
 stay with the owner, outside this repository.
 
 - [ ] **B.1 [owner] Set the pass thresholds here before the first interview.** Suggested: at least 6 of 10 interviewees would use it every week during a search, and at least 3 would pay a stated price.
-- [ ] **B.2 [claude] Test kit:** a one-page description in Arabic and English; a 20-minute interview guide (how they search now, the tools they use, what wastes their time, how they'd feel about approving applications in WhatsApp or Telegram, what they would pay); and a clickable prototype of three screens (today's queue, approving a kit, reply tracking) built with made-up data only. The kit lives in `docs/demand-test/` and contains no personal data.
+- [x] **B.2 [claude] Test kit** (done: `docs/demand-test/`, Arabic still to be reviewed by a native speaker): a one-page description in Arabic and English; a 20-minute interview guide (how they search now, the tools they use, what wastes their time, how they'd feel about approving applications in WhatsApp or Telegram, what they would pay); and a clickable prototype of three screens (today's queue, approving a kit, reply tracking) built with made-up data only. The kit lives in `docs/demand-test/` and contains no personal data.
 - [ ] **B.3 [owner] Interviews:** 10–15 job seekers in Egypt and the Gulf who don't use developer tools, across several kinds of role (not only tech), by 30 November 2026.
 - [ ] **B.4 [claude] Summary** of the anonymised notes against the thresholds.
 - [ ] **B.5 [owner] Decision** by 31 December 2026: tick Gate 1, or take the fallback in "Tracks and gates". If ticking Gate 1, book the legal advice in 12.1 straight away.
