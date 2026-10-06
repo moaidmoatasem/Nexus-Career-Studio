@@ -42,7 +42,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { intakeJobUrl, refreshMyDiscovery } from "@/lib/discovery.functions";
+import { intakeJobText, intakeJobUrl, refreshMyDiscovery } from "@/lib/discovery.functions";
 import { GmailConnection } from "@/components/GmailConnection";
 
 export const Route = createFileRoute("/_authenticated/radar")({
@@ -392,26 +392,38 @@ function RadarPage() {
 function ImportJobDialog({ onAdded }: { onAdded: () => void }) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
+  const [text, setText] = useState("");
+  const [pasteMode, setPasteMode] = useState(false);
   const [busy, setBusy] = useState(false);
   const intake = useServerFn(intakeJobUrl);
+  const intakeText = useServerFn(intakeJobText);
+  function done(duplicate: boolean) {
+    toast.success(
+      duplicate ? "This role is already in your inbox" : "Job imported and ready to review",
+    );
+    setOpen(false);
+    setUrl("");
+    setText("");
+    setPasteMode(false);
+    onAdded();
+  }
   async function importJob() {
     setBusy(true);
     try {
-      const result = await intake({ data: { url } });
+      const result = pasteMode
+        ? await intakeText({ data: { text, ...(url.startsWith("http") ? { link: url } : {}) } })
+        : await intake({ data: { url } });
       if (!result.ok) {
+        // Job boards are never opened by Nexus: ask for the posting text instead.
+        if ("needsText" in result && result.needsText) setPasteMode(true);
         toast.error(result.error);
         return;
       }
-      toast.success(
-        result.data.duplicate
-          ? "This role is already in your inbox"
-          : "Job imported and ready to review",
-      );
-      setOpen(false);
-      setUrl("");
-      onAdded();
+      done(result.data.duplicate);
     } catch {
-      toast.error("Enter a complete public job URL.");
+      toast.error(
+        pasteMode ? "The text could not be imported." : "Enter a complete public job URL.",
+      );
     } finally {
       setBusy(false);
     }
@@ -431,17 +443,49 @@ function ImportJobDialog({ onAdded }: { onAdded: () => void }) {
         <div className="grid gap-3">
           <Input
             type="url"
-            placeholder="LinkedIn, Indeed, or employer job URL"
+            placeholder={
+              pasteMode
+                ? "Link to keep with the role (optional, never opened)"
+                : "Employer job URL (Greenhouse, Lever, Ashby, Workday or a career page)"
+            }
             value={url}
             onChange={(event) => setUrl(event.target.value)}
           />
-          <p className="text-xs text-muted-foreground">
-            Nexus reads the public posting, extracts only stated facts, and flags pages it cannot
-            access.
-          </p>
-          <Button onClick={importJob} disabled={busy || !url.startsWith("http")}>
-            {busy ? "Reading posting…" : "Import job"}
-          </Button>
+          {pasteMode ? (
+            <>
+              <Textarea
+                rows={9}
+                placeholder="Paste the job description here, from LinkedIn, Indeed or anywhere else"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Nexus never opens LinkedIn, Indeed or other job boards. It reads only the text you
+                paste and keeps only facts the text states.
+              </p>
+              <Button onClick={importJob} disabled={busy || text.trim().length < 80}>
+                {busy ? "Reading text…" : "Import from text"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Nexus reads the employer's public posting, extracts only stated facts, and flags
+                pages it cannot access. Job boards such as LinkedIn and Indeed are never opened:{" "}
+                <button
+                  type="button"
+                  className="underline underline-offset-2"
+                  onClick={() => setPasteMode(true)}
+                >
+                  paste the job text instead
+                </button>
+                .
+              </p>
+              <Button onClick={importJob} disabled={busy || !url.startsWith("http")}>
+                {busy ? "Reading posting…" : "Import job"}
+              </Button>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>

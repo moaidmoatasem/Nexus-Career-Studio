@@ -24,7 +24,8 @@ export type ExtractedJob = z.infer<typeof extractedJobSchema> & {
   source: string;
   source_provider: string;
   source_record_id: string;
-  verified_at: string;
+  /** Null when the text did not come from the employer's own page (pasted text). */
+  verified_at: string | null;
   lifecycle_status: "active";
   extraction_provenance: Record<string, string>;
 };
@@ -206,7 +207,7 @@ export async function extractPublicJob(rawUrl: string): Promise<ExtractedJob> {
 }
 
 /** Stable non-cryptographic id (FNV-1a 64-bit), portable across runtimes. */
-function fnv1a(input: string) {
+export function fnv1a(input: string) {
   let h = 0xcbf29ce484222325n;
   for (const b of new TextEncoder().encode(input))
     h = BigInt.asUintN(64, (h ^ BigInt(b)) * 0x100000001b3n);

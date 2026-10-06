@@ -77,6 +77,38 @@ export const intakeJobUrl = createServerFn({ method: "POST" })
     }
   });
 
+const textInputSchema = z.object({
+  text: z.string().min(1).max(60_000),
+  link: z.string().max(2000).optional(),
+});
+
+/** Role from text the user pasted (the way job-board roles enter). The optional link is never fetched. */
+export const intakeJobText = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { text: string; link?: string }) => textInputSchema.parse(input))
+  .handler(async ({ data, context }): Promise<IntakeResult> => {
+    const { saveJobForUser } = await import("./discovery.server");
+    const { extractJobFromText, JobTextError } = await import("./jobText.server");
+    const { AiError } = await import("./ai.server");
+    try {
+      const job = await extractJobFromText(data.text, data.link);
+      const saved = await saveJobForUser(context.supabase, context.userId, job, "pasted");
+      if (saved.status === "failed") return { ok: false, error: saved.error };
+      const { data: row } = await context.supabase
+        .from("jobs")
+        .select("id")
+        .eq("canonical_url", job.canonical_url)
+        .eq("user_id", context.userId)
+        .maybeSingle();
+      if (!row) return { ok: false, error: "The role was saved but could not be found." };
+      return { ok: true, data: { jobId: row.id, duplicate: saved.status === "duplicate" } };
+    } catch (error) {
+      if (error instanceof JobTextError || error instanceof AiError)
+        return { ok: false, error: error.message };
+      throw error;
+    }
+  });
+
 export const refreshMyDiscovery = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
