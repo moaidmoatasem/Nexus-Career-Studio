@@ -97,6 +97,14 @@ authentication enabled for a service account. Then set `GMAIL_PUBSUB_TOPIC` (`pr
 `GMAIL_PUBSUB_AUDIENCE` only if the subscription's audience is something else. Without push, the background
 agent still checks the inbox on its schedule.
 
+**What Nexus reads.** It looks at each new message's sender, subject and Gmail label first. Only mail from recruiting
+systems and job boards, from employers you applied to, or with recruitment wording in the subject is read in full,
+sent to the AI provider or stored; all other mail is skipped and only its id is kept. Mail from free-mail addresses,
+or asking for fees or visa payments, is flagged in the review queue as a possible scam and never updates an
+application. If the AI provider rejects the key or is out of credits, inbox checking pauses with that reason; the
+agent retries once a day and **Check inbox now** retries at once. Today and Connections show a banner when Gmail or
+the scheduler hasn't succeeded for 24 hours.
+
 ## 6. Run with Docker Compose (recommended)
 ```sh
 docker compose up -d --build

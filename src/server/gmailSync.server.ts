@@ -1,6 +1,6 @@
 import { AiError } from "@/lib/ai.server";
 import { classifyRecruitmentEmail, type EmailClassification } from "@/lib/email-classifier.server";
-import { shouldFetchMessage } from "@/lib/mailFilter";
+import { assessMailRisk, shouldFetchMessage } from "@/lib/mailFilter";
 import { jobLinks, mailSourceKind, matchApplication } from "@/lib/mailMatch";
 import { isSubmittedStage, nextStageFromEmail, stageForEmail } from "@/lib/stages";
 import { gmailFetch, GmailReconnectError, hasGmailConnection } from "./gmailApi.server";
@@ -87,7 +87,19 @@ export async function registerGmailWatch(userId: string) {
   return { enabled: true as const };
 }
 
-export async function syncGmailForUser(userId: string, maxMessages = 20) {
+export const PAUSED_MESSAGE =
+  "The AI provider rejected the key or is out of credits. Fix AI_API_KEY or add credits; Nexus retries once a day, or press Check inbox now.";
+
+export async function syncGmailForUser(
+  userId: string,
+  maxMessages = 20,
+  options: {
+    /** The user asked for this check, so a paused sync is retried now. */
+    manual?: boolean;
+    /** A paused sync is retried once it has been paused this long (the agent passes one day). */
+    retryPausedAfterMs?: number;
+  } = {},
+) {
   if (!(await hasGmailConnection(userId)))
     return {
       ok: false as const,
@@ -97,11 +109,23 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: state } = await supabaseAdmin
     .from("gmail_sync_state")
-    .select("history_id,status,lease_expires_at")
+    .select("history_id,status,lease_expires_at,paused_at,last_error")
     .eq("user_id", userId)
     .maybeSingle();
-  if (state?.status === "paused")
-    return { ok: false as const, reconnectRequired: false, error: state.status };
+  if (state?.status === "paused") {
+    // A paused sync is retried when the user presses "Check inbox now" or, from the agent, once a day.
+    const pausedFor = state.paused_at ? Date.now() - Date.parse(state.paused_at) : Infinity;
+    const retry =
+      options.manual ||
+      (options.retryPausedAfterMs !== undefined && pausedFor >= options.retryPausedAfterMs);
+    if (!retry)
+      return {
+        ok: false as const,
+        paused: true as const,
+        reconnectRequired: false,
+        error: state.last_error ?? PAUSED_MESSAGE,
+      };
+  }
   if (state?.lease_expires_at && new Date(state.lease_expires_at) > new Date())
     return { ok: true as const, checked: 0, processed: 0, matched: 0 };
   await supabaseAdmin.from("gmail_sync_state").upsert(
@@ -390,8 +414,21 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
               body,
             })
           : null;
+      // Free-mail senders and fee or payment requests never move an application, even when the
+      // message names the employer and the role: they go to the review queue, flagged.
+      const risk =
+        kind === "recruiter"
+          ? assessMailRisk({
+              sender,
+              subject,
+              body,
+              readsAsRecruitment: classification.status !== "informational",
+            })
+          : [];
       const confident =
-        Boolean(match?.app) && classification.confidence >= MIN_CLASSIFIER_CONFIDENCE;
+        risk.length === 0 &&
+        Boolean(match?.app) &&
+        classification.confidence >= MIN_CLASSIFIER_CONFIDENCE;
       const app = confident ? (match?.app ?? null) : null;
       if (app) {
         const next = nextStageFromEmail(app.status, stageForEmail(classification.status));
@@ -424,11 +461,17 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
           source: "gmail",
         });
         matched += 1;
-      } else if (kind === "recruiter" && classification.status !== "informational") {
-        // Informational mail needs no decision, so it never enters the review queue.
-        const reason = match?.app
-          ? `Classifier confidence ${Math.round(classification.confidence * 100)}% is below the automatic-update bar`
-          : (match?.reason ?? "No confident application match");
+      } else if (
+        kind === "recruiter" &&
+        (risk.length > 0 || classification.status !== "informational")
+      ) {
+        // Informational mail needs no decision, so it stays out of the review queue unless it looks risky.
+        const reason =
+          risk.length > 0
+            ? `Possible scam: ${risk.join("; ")}. Check the sender before replying; Nexus did not update any application.`
+            : match?.app
+              ? `Classifier confidence ${Math.round(classification.confidence * 100)}% is below the automatic-update bar`
+              : (match?.reason ?? "No confident application match");
         await supabaseAdmin.from("unmatched_mail_messages").upsert(
           {
             user_id: userId,
@@ -441,6 +484,7 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
             company_name: classification.company_name,
             action_summary: classification.action_summary,
             match_reason: reason,
+            possible_scam: risk.length > 0,
           },
           { onConflict: "user_id,provider,provider_message_id" },
         );
@@ -515,6 +559,7 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
         status: "ready",
         last_success_at: now,
         last_error: null,
+        paused_at: null,
         lease_expires_at: null,
       },
       { onConflict: "user_id" },
@@ -533,17 +578,33 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
     return { ok: true as const, checked: ids.length, processed, matched, skipped };
   } catch (error) {
     if (error instanceof GmailReconnectError) return await needsReconnect();
-    const message = error instanceof Error ? error.message : "Gmail sync failed.";
     const paused = error instanceof AiError && [402, 403].includes(error.status);
+    const message = paused
+      ? PAUSED_MESSAGE
+      : error instanceof Error
+        ? error.message
+        : "Gmail sync failed.";
     await supabaseAdmin.from("gmail_sync_state").upsert(
       {
         user_id: userId,
         status: paused ? "paused" : "needs_attention",
         last_error: message,
+        paused_at: paused ? new Date().toISOString() : null,
         lease_expires_at: null,
       },
       { onConflict: "user_id" },
     );
+    if (paused)
+      await supabaseAdmin.from("source_connections").upsert(
+        {
+          user_id: userId,
+          source: "gmail",
+          enabled: true,
+          status: "needs_attention",
+          last_error: message,
+        },
+        { onConflict: "user_id,source" },
+      );
     throw error;
   }
 }

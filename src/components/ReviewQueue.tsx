@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Hand, Mail, Send, CalendarClock } from "lucide-react";
+import { Hand, Mail, Send, CalendarClock, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,13 +85,25 @@ export function ReviewQueue() {
       )}
       <ul className="mt-3 divide-y text-sm">
         {(mail.data ?? []).map((m) => {
-          const value = choice[m.id] ?? suggest(m.company_name) ?? "";
+          // Flagged mail is never pre-selected for a one-click link.
+          const value = choice[m.id] ?? (m.possible_scam ? "" : suggest(m.company_name)) ?? "";
           return (
             <li key={m.id} className="flex flex-wrap items-center gap-2 py-2.5">
-              <Mail className="size-4 text-primary" />
+              {m.possible_scam ? (
+                <TriangleAlert className="size-4 text-destructive" />
+              ) : (
+                <Mail className="size-4 text-primary" />
+              )}
               <span className="min-w-0 flex-1">
-                <b>Unclear email:</b> {m.subject}{" "}
-                <span className="text-muted-foreground">from {m.sender}</span>
+                <b className={m.possible_scam ? "text-destructive" : undefined}>
+                  {m.possible_scam ? "Possible scam:" : "Unclear email:"}
+                </b>{" "}
+                {m.subject} <span className="text-muted-foreground">from {m.sender}</span>
+                {m.possible_scam && m.match_reason && (
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {m.match_reason}
+                  </span>
+                )}
               </span>
               <select
                 aria-label="Choose application"

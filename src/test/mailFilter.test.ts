@@ -88,3 +88,75 @@ describe("shouldFetchMessage", () => {
     ).toEqual({ fetch: false, reason: "not_recruitment" });
   });
 });
+
+import { assessMailRisk, isFreeMailSender, scamSignals } from "@/lib/mailFilter";
+
+describe("free-mail senders", () => {
+  it.each([
+    "Recruiter <jane.recruiter@gmail.com>",
+    "hr@yahoo.co.uk",
+    "talent@hotmail.com",
+    "x@outlook.com",
+    "x@live.com",
+    "x@protonmail.com",
+    "x@gmx.de",
+  ])("treats %s as free mail", (sender) => expect(isFreeMailSender(sender)).toBe(true));
+
+  it.each([
+    "jobs@acme.com",
+    "no-reply@acme.myworkday.com",
+    "x@outlook.office365.com",
+    "x@gmail.com.evil.example",
+    "x@notgmail.com",
+    "",
+  ])("does not treat %j as free mail", (sender) => expect(isFreeMailSender(sender)).toBe(false));
+});
+
+describe("scam signals", () => {
+  it.each([
+    "To secure your place please pay a visa processing fee of $250 via Western Union.",
+    "A refundable security deposit is required before onboarding.",
+    "Send the registration fee by bitcoin to this wallet.",
+    "Please transfer the training fee today.",
+    "You must pay for your visa before we can proceed.",
+    "Buy gift cards and send the codes to the hiring manager.",
+  ])("flags: %s", (body) =>
+    expect(scamSignals({ subject: "Job offer", body }).length).toBeGreaterThan(0),
+  );
+
+  it.each([
+    "We would like to invite you to interview for the Platform Engineer role.",
+    "There is no application fee, and we never ask candidates for money.",
+    "We will sponsor your visa and cover relocation costs.",
+    "Your offer letter is attached; please sign and return it.",
+  ])("does not flag: %s", (body) =>
+    expect(scamSignals({ subject: "Next steps", body })).toEqual([]),
+  );
+});
+
+describe("assessMailRisk", () => {
+  const base = { subject: "Interview", body: "Please pick a time." };
+  it("flags a free-mail sender only when the message reads as recruitment", () => {
+    expect(
+      assessMailRisk({ ...base, sender: "Jane <jane@gmail.com>", readsAsRecruitment: true }),
+    ).toEqual(["sent from a free-mail address (gmail.com)"]);
+    expect(
+      assessMailRisk({ ...base, sender: "Friend <f@gmail.com>", readsAsRecruitment: false }),
+    ).toEqual([]);
+  });
+  it("always flags a payment request, whoever sends it", () => {
+    expect(
+      assessMailRisk({
+        sender: "hr@acme.com",
+        subject: "Offer",
+        body: "Pay the visa processing fee today.",
+        readsAsRecruitment: false,
+      }),
+    ).toContain("asks for a fee");
+  });
+  it("is empty for ordinary employer mail", () => {
+    expect(assessMailRisk({ ...base, sender: "hr@acme.com", readsAsRecruitment: true })).toEqual(
+      [],
+    );
+  });
+});
