@@ -38,5 +38,5 @@ export default defineConfig(({ command }) => ({
     ],
   },
   // true = every interface, IPv4 and IPv6 where available (a literal "::" fails on IPv4-only hosts).
-  server: { host: true, port: 8080 },
+  server: { host: true, port: 3000 },
 }));
