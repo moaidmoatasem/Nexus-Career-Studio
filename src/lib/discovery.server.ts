@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { AtsPostingGone, fetchAtsFacts, parseAtsPosting, type AtsFacts } from "./atsApis.server";
 import { assertNotJobBoard, hostIs, isJobBoardUrl } from "./jobSources";
 
 const extractedJobSchema = z.object({
@@ -167,9 +168,67 @@ export async function searchPublicJobs(query: string, limit = 6) {
   );
 }
 
+/**
+ * Greenhouse, Lever and Ashby postings are read from the employer's public JSON API, which is
+ * cheaper and steadier than reading the page. The title, employer, location and description come
+ * from the API as published; only skills, years and domain are read from that text by the model.
+ * Returns null for any other page, or when the API can't be used, so the page is read instead.
+ */
+async function extractFromAtsApi(canonicalUrl: string): Promise<ExtractedJob | null> {
+  const posting = parseAtsPosting(canonicalUrl);
+  if (!posting) return null;
+  let facts: AtsFacts;
+  try {
+    facts = await fetchAtsFacts(posting);
+  } catch (error) {
+    if (error instanceof AtsPostingGone)
+      throw new Error("This posting is no longer open: the employer's job board does not list it.");
+    return null;
+  }
+  if (facts.title.length < 2 || facts.description.length < 40) return null;
+  const { readJobFacts } = await import("./jobText.server");
+  const read = await readJobFacts(
+    `Title: ${facts.title}\nEmployer: ${facts.company}\nLocation: ${facts.location}\n\n${facts.description}`.slice(
+      0,
+      20_000,
+    ),
+  );
+  const provider = sourceProvider(canonicalUrl);
+  const verifiedAt = new Date().toISOString();
+  return {
+    title: facts.title,
+    company_name: facts.company,
+    location: facts.location,
+    country: read.country.trim(),
+    is_remote: facts.isRemote ?? read.is_remote,
+    salary_range: facts.salary ?? (read.salary_range?.trim() || null),
+    description: facts.description.slice(0, 20_000),
+    required_skills: read.required_skills.map((x) => x.trim()).filter(Boolean),
+    preferred_skills: read.preferred_skills.map((x) => x.trim()).filter(Boolean),
+    min_years_exp: Math.max(0, Math.round(read.min_years_exp)),
+    domain: read.domain.trim(),
+    job_url: canonicalUrl,
+    canonical_url: canonicalUrl,
+    source: provider,
+    source_provider: provider,
+    source_record_id: posting.id,
+    verified_at: verifiedAt,
+    lifecycle_status: "active",
+    extraction_provenance: {
+      method: "ats_public_api",
+      source_url: canonicalUrl,
+      api_url: facts.apiUrl,
+      company_source: facts.companySource,
+      verified_at: verifiedAt,
+    },
+  };
+}
+
 export async function extractPublicJob(rawUrl: string): Promise<ExtractedJob> {
   assertNotJobBoard(rawUrl);
   const canonicalUrl = canonicalizeJobUrl(rawUrl);
+  const fromApi = await extractFromAtsApi(canonicalUrl);
+  if (fromApi) return fromApi;
   const response = await firecrawl("/v2/scrape", {
     url: canonicalUrl,
     onlyMainContent: true,
