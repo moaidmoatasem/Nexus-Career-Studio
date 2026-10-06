@@ -60,6 +60,10 @@ attempt. Optional: `AI_REASONING_EFFORT` (for models that accept `reasoning_effo
 number that isn't in your verified evidence.
 
 ## 4. Job-page reading (Firecrawl)
+Greenhouse, Lever and Ashby postings are read from those employers' public job-board APIs (no key needed; the AI
+provider only reads skills and years from the text). Firecrawl is needed for **Find roles now** and for other employer
+career pages such as Workday. Job boards (LinkedIn, Indeed and others) are never read.
+
 Set `FIRECRAWL_API_KEY` for [firecrawl.dev](https://firecrawl.dev), or `FIRECRAWL_API_URL` to point at your own
 [Firecrawl](https://github.com/firecrawl/firecrawl) instance (its JSON extraction needs an LLM configured on that
 instance). Without either, add roles by hand on **Discover → Add role** or **New application**.

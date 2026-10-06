@@ -29,6 +29,17 @@ export function buildJobTextPrompt(text: string): string {
 
 export class JobTextError extends Error {}
 
+export type JobFacts = z.infer<typeof pastedJobSchema>;
+
+/** Reads the facts a posting's text states; the text is delimited and treated as untrusted data. */
+export function readJobFacts(text: string): Promise<JobFacts> {
+  return generateStructured({
+    instructions: INSTRUCTIONS,
+    prompt: buildJobTextPrompt(text),
+    schema: pastedJobSchema,
+  });
+}
+
 /**
  * Turns pasted job-description text into a role. The stored description is the user's own text,
  * not the model's rewording, so nothing in it can be invented. `link` is only a reference for the
@@ -38,11 +49,7 @@ export async function extractJobFromText(rawText: string, link?: string): Promis
   const text = rawText.trim().slice(0, MAX_JOB_TEXT);
   if (text.length < MIN_JOB_TEXT)
     throw new JobTextError("Paste more of the job description so it can be read.");
-  const facts = await generateStructured({
-    instructions: INSTRUCTIONS,
-    prompt: buildJobTextPrompt(text),
-    schema: pastedJobSchema,
-  });
+  const facts = await readJobFacts(text);
   const title = facts.title.trim();
   const company = facts.company_name.trim();
   if (title.length < 2 || company.length < 2)
