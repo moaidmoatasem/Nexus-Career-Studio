@@ -4,6 +4,7 @@
 - Keep `main` deployable and do not rewrite published history.
 - The product direction, automation policy and principles are in STRATEGY.md; the work plan is PLAN.md.
 - PLAN.md's gates are binding: work behind a closed gate does not start. Before building a feature, check whether career-ops or JobSync already provides it; if one does, propose contributing there first.
+- A PR that adds a migration also regenerates `src/integrations/supabase/types.ts` with `bun run db:types` (needs `npx supabase login` and `npx supabase link`), so the typecheck sees the new schema.
 
 ## Architecture rules
 - AI calls live in `src/lib/ai.functions.ts` (auth-protected server functions) using `generateStructured` in `src/lib/ai.server.ts`, which talks to any OpenAI-compatible Chat Completions API (`AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY`) and validates replies with zod; keys stay server-side.
