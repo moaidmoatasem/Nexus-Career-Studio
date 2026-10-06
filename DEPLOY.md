@@ -100,7 +100,17 @@ curl http://localhost:3000/api/public/health   # shows which capabilities are co
 ```
 The `scheduler` service wakes the agent every 15 minutes (`AGENT_INTERVAL_SECONDS`), so inbox checks, Gmail watch
 renewal and follow-up reminders continue with your browser closed. Turn the agent on in **Mission Control**.
-Put a reverse proxy (Caddy, nginx) in front for HTTPS; Google requires HTTPS redirect URIs outside localhost.
+
+**HTTPS (needed outside localhost: Google requires HTTPS redirect URIs).** Point a domain's A record at the server,
+open ports 80 and 443, and set in `.env`:
+```sh
+DOMAIN=nexus.example.com
+APP_URL=https://nexus.example.com
+WEB_BIND=127.0.0.1     # port 3000 is then reachable only through Caddy
+```
+then run `docker compose --profile https up -d --build`. The bundled `Caddyfile` gets and renews the certificate
+automatically and proxies to the app; certificates live in the `caddy_data` volume, so keep it. Check
+`https://<domain>/api/public/health`. With nginx or another proxy instead, forward to `web:3000` and set `APP_URL`.
 Upgrade: `git pull && docker compose up -d --build`. Roll back: check out the previous tag and rebuild.
 
 Single container instead:
