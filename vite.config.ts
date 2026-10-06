@@ -16,14 +16,26 @@ export default defineConfig(({ command }) => ({
       // Use src/server.ts (our SSR error wrapper) as the server entry.
       server: { entry: "server" },
       // Server-only modules must never end up in the browser bundle.
-      importProtection: { behavior: "error", client: { files: ["**/server/**"], specifiers: ["server-only"] } },
+      importProtection: {
+        behavior: "error",
+        client: { files: ["**/server/**"], specifiers: ["server-only"] },
+      },
     }),
-    ...(command === "build" ? [nitro({ preset: process.env["NITRO_PRESET"] || "node-server" })] : []),
+    ...(command === "build"
+      ? [nitro({ preset: process.env["NITRO_PRESET"] || "node-server" })]
+      : []),
     viteReact(),
   ],
   resolve: {
     alias: { "@": path.resolve(process.cwd(), "src") },
-    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
+    dedupe: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "@tanstack/react-query",
+      "@tanstack/query-core",
+    ],
   },
   // true = every interface, IPv4 and IPv6 where available (a literal "::" fails on IPv4-only hosts).
   server: { host: true, port: 8080 },

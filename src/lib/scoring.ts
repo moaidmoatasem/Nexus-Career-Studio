@@ -49,24 +49,110 @@ const placeTokens = (s: string) =>
     .filter(Boolean);
 const hasPlace = (tokens: string[], term: string) => {
   const t = term.split(" ");
-  for (let i = 0; i + t.length <= tokens.length; i++) if (t.every((w, j) => tokens[i + j] === w)) return true;
+  for (let i = 0; i + t.length <= tokens.length; i++)
+    if (t.every((w, j) => tokens[i + j] === w)) return true;
   return false;
 };
 
-const UK_COUNTRY_TERMS = ["uk", "u k", "gb", "united kingdom", "great britain", "britain", "england", "scotland", "wales", "northern ireland"];
+const UK_COUNTRY_TERMS = [
+  "uk",
+  "u k",
+  "gb",
+  "united kingdom",
+  "great britain",
+  "britain",
+  "england",
+  "scotland",
+  "wales",
+  "northern ireland",
+];
 const UK_PLACE_TERMS = [
   ...UK_COUNTRY_TERMS,
-  "london", "manchester", "birmingham", "edinburgh", "glasgow", "leeds", "bristol", "cambridge", "oxford", "reading",
-  "belfast", "cardiff", "liverpool", "sheffield", "newcastle", "nottingham", "leicester", "brighton", "milton keynes",
-  "aberdeen", "southampton", "york", "coventry", "exeter", "bath",
+  "london",
+  "manchester",
+  "birmingham",
+  "edinburgh",
+  "glasgow",
+  "leeds",
+  "bristol",
+  "cambridge",
+  "oxford",
+  "reading",
+  "belfast",
+  "cardiff",
+  "liverpool",
+  "sheffield",
+  "newcastle",
+  "nottingham",
+  "leicester",
+  "brighton",
+  "milton keynes",
+  "aberdeen",
+  "southampton",
+  "york",
+  "coventry",
+  "exeter",
+  "bath",
 ];
 const NON_UK_PLACE_TERMS = [
-  "uae", "united arab emirates", "dubai", "abu dhabi", "sharjah", "saudi", "saudi arabia", "ksa", "riyadh", "jeddah",
-  "dammam", "khobar", "qatar", "doha", "kuwait", "bahrain", "manama", "oman", "muscat", "egypt", "cairo", "giza",
-  "alexandria", "jordan", "amman", "lebanon", "beirut", "morocco", "casablanca", "usa", "us", "united states",
-  "canada", "toronto", "ireland", "dublin", "germany", "berlin", "munich", "netherlands", "amsterdam", "france",
-  "paris", "spain", "madrid", "portugal", "lisbon", "poland", "warsaw", "india", "bangalore", "bengaluru",
-  "singapore", "australia", "sydney", "melbourne", "new york", "san francisco",
+  "uae",
+  "united arab emirates",
+  "dubai",
+  "abu dhabi",
+  "sharjah",
+  "saudi",
+  "saudi arabia",
+  "ksa",
+  "riyadh",
+  "jeddah",
+  "dammam",
+  "khobar",
+  "qatar",
+  "doha",
+  "kuwait",
+  "bahrain",
+  "manama",
+  "oman",
+  "muscat",
+  "egypt",
+  "cairo",
+  "giza",
+  "alexandria",
+  "jordan",
+  "amman",
+  "lebanon",
+  "beirut",
+  "morocco",
+  "casablanca",
+  "usa",
+  "us",
+  "united states",
+  "canada",
+  "toronto",
+  "ireland",
+  "dublin",
+  "germany",
+  "berlin",
+  "munich",
+  "netherlands",
+  "amsterdam",
+  "france",
+  "paris",
+  "spain",
+  "madrid",
+  "portugal",
+  "lisbon",
+  "poland",
+  "warsaw",
+  "india",
+  "bangalore",
+  "bengaluru",
+  "singapore",
+  "australia",
+  "sydney",
+  "melbourne",
+  "new york",
+  "san francisco",
 ];
 
 /**
@@ -114,7 +200,10 @@ export function calculateFitScore(
   const visaCheck = candidate.requiresVisa && ukRole ? "uk_sponsor" : "not_applicable";
   const visaSatisfied = visaCheck === "not_applicable" || job.sponsorVerified;
   const weighted =
-    skillScore * w.skill + seniorityScore * w.seniority + domainScore * w.domain + (visaSatisfied ? 100 : 0) * w.visa;
+    skillScore * w.skill +
+    seniorityScore * w.seniority +
+    domainScore * w.domain +
+    (visaSatisfied ? 100 : 0) * w.visa;
   const totalScore = visaSatisfied ? Math.round(Math.min(100, Math.max(0, weighted))) : 0;
   return {
     totalScore,
@@ -135,7 +224,10 @@ export function isVerifiedSponsorMatch(similarity: number | null | undefined): b
 
 export interface RoleScoreInput {
   vault: Array<{ skills: string[]; is_verified: boolean }>;
-  profile: { years_experience: number; target_domains: string[]; requires_visa: boolean } | null | undefined;
+  profile:
+    | { years_experience: number; target_domains: string[]; requires_visa: boolean }
+    | null
+    | undefined;
   job: {
     required_skills: string[];
     preferred_skills: string[];
@@ -149,7 +241,12 @@ export interface RoleScoreInput {
 }
 
 /** The one scoring path used by both the browser and the server. Only verified vault items count. */
-export function scoreRole({ vault, profile, job, sponsorSimilarity }: RoleScoreInput): ScoreBreakdown {
+export function scoreRole({
+  vault,
+  profile,
+  job,
+  sponsorSimilarity,
+}: RoleScoreInput): ScoreBreakdown {
   return calculateFitScore(
     {
       skills: vault.filter((v) => v.is_verified).flatMap((v) => v.skills),
