@@ -158,6 +158,8 @@ export function useUnmatchedMail() {
         .from("unmatched_mail_messages")
         .select("*")
         .eq("review_status", "pending")
+        // Informational mail needs no decision; earlier syncs may still have queued some.
+        .or("classification.is.null,classification.neq.informational")
         .order("received_at", { ascending: false });
       if (error) throw error;
       return data;

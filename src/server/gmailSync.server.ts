@@ -1,8 +1,11 @@
 import { AiError } from "@/lib/ai.server";
 import { classifyRecruitmentEmail, type EmailClassification } from "@/lib/email-classifier.server";
+import { shouldFetchMessage } from "@/lib/mailFilter";
 import { jobLinks, mailSourceKind, matchApplication } from "@/lib/mailMatch";
 import { isSubmittedStage, nextStageFromEmail, stageForEmail } from "@/lib/stages";
 import { gmailFetch, GmailReconnectError, hasGmailConnection } from "./gmailApi.server";
+/** A message that fails this many times is skipped for good so it never blocks the sync. */
+const MAX_MESSAGE_ATTEMPTS = 3;
 /** Classifier confidence required before an email may change an application. */
 const MIN_CLASSIFIER_CONFIDENCE = 0.75;
 
@@ -183,12 +186,19 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
     const { data: seenRows } = ids.length
       ? await supabaseAdmin
           .from("processed_mail_messages")
-          .select("provider_message_id")
+          .select("provider_message_id,status,attempts")
           .eq("user_id", userId)
           .eq("provider", "gmail")
           .in("provider_message_id", ids)
       : { data: [] };
-    const seen = new Set((seenRows ?? []).map((row) => row.provider_message_id));
+    const seen = new Set(
+      (seenRows ?? []).filter((row) => row.status !== "failed").map((r) => r.provider_message_id),
+    );
+    const failedBefore = new Map(
+      (seenRows ?? [])
+        .filter((row) => row.status === "failed")
+        .map((row) => [row.provider_message_id, row.attempts] as const),
+    );
     const fresh = ids.filter((id) => !seen.has(id)).slice(0, maxMessages);
     const { data: appRows } = await supabaseAdmin
       .from("applications")
@@ -197,17 +207,54 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
     const apps = (appRows ?? []) as AppRow[];
     let processed = 0;
     let matched = 0;
-    for (const id of fresh) {
+    let skipped = 0;
+    const employers = apps.flatMap((a) => (a.jobs?.company_name ? [a.jobs.company_name] : []));
+    // Skipped mail keeps only its id and the reason, so it is never read or stored again.
+    const markSkipped = async (id: string, reason: string) => {
+      await supabaseAdmin.from("processed_mail_messages").upsert(
+        {
+          user_id: userId,
+          provider: "gmail",
+          provider_message_id: id,
+          status: "skipped",
+          skip_reason: reason,
+          attempts: 0,
+          source_kind: "other",
+          classification: null,
+          matched: false,
+          sender: "",
+          subject: "",
+          processed_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,provider,provider_message_id" },
+      );
+      skipped += 1;
+    };
+    const handleMessage = async (id: string): Promise<void> => {
+      // Headers first: the decision to read a message at all never needs its content.
+      const peek = await gmailFetch(
+        userId,
+        `/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&fields=id,labelIds,payload/headers`,
+      );
+      if (!peek.ok) throw new Error(`Gmail message check failed (${peek.status}).`);
+      const head = (await peek.json()) as GmailMessage & { labelIds?: string[] };
+      const decision = shouldFetchMessage({
+        sender: header(head, "From"),
+        subject: header(head, "Subject"),
+        labelIds: head.labelIds ?? [],
+        employers,
+      });
+      if (!decision.fetch) return markSkipped(id, decision.reason);
       const response = await gmailFetch(
         userId,
         `/gmail/v1/users/me/messages/${id}?format=full&fields=id,historyId,internalDate,snippet,payload`,
       );
-      if (!response.ok) continue;
+      if (!response.ok) throw new Error(`Gmail message fetch failed (${response.status}).`);
       const message = (await response.json()) as GmailMessage;
       const sender = header(message, "From");
       const subject = header(message, "Subject");
       const body = (bodyText(message.payload) || message.snippet || "").slice(0, 20_000);
-      if (body.length < 5) continue;
+      if (body.length < 5) return markSkipped(id, "empty_message");
       const receivedAt = message.internalDate
         ? new Date(Number(message.internalDate)).toISOString()
         : null;
@@ -220,6 +267,9 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
             provider: "gmail",
             provider_message_id: id,
             application_id: null,
+            status: "processed",
+            attempts: 0,
+            skip_reason: null,
             classification: "informational",
             matched: false,
             sender,
@@ -237,7 +287,7 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
         );
         newestHistory = message.historyId ?? newestHistory;
         processed += 1;
-        continue;
+        return;
       }
       // Job-alert mail is not recruiter mail: it is never classified for an application match.
       const classification: EmailClassification =
@@ -374,7 +424,8 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
           source: "gmail",
         });
         matched += 1;
-      } else if (kind === "recruiter") {
+      } else if (kind === "recruiter" && classification.status !== "informational") {
+        // Informational mail needs no decision, so it never enters the review queue.
         const reason = match?.app
           ? `Classifier confidence ${Math.round(classification.confidence * 100)}% is below the automatic-update bar`
           : (match?.reason ?? "No confident application match");
@@ -400,6 +451,9 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
           provider: "gmail",
           provider_message_id: id,
           application_id: app?.id ?? null,
+          status: "processed",
+          attempts: 0,
+          skip_reason: null,
           classification: classification.status,
           matched: Boolean(app),
           sender,
@@ -420,6 +474,38 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
       );
       newestHistory = message.historyId ?? newestHistory;
       processed += 1;
+    };
+    for (const id of fresh) {
+      try {
+        await handleMessage(id);
+      } catch (error) {
+        // Reconnect and AI-key problems affect every message, so they stop the sync as before.
+        if (error instanceof GmailReconnectError) throw error;
+        if (error instanceof AiError && [402, 403].includes(error.status)) throw error;
+        // One bad message never blocks the rest: retry it next sync, then skip it for good.
+        const attempts = (failedBefore.get(id) ?? 0) + 1;
+        const reason = (error instanceof Error ? error.message : "Unknown failure").slice(0, 300);
+        console.error(`Mail message could not be processed (attempt ${attempts})`, reason);
+        const giveUp = attempts >= MAX_MESSAGE_ATTEMPTS;
+        await supabaseAdmin.from("processed_mail_messages").upsert(
+          {
+            user_id: userId,
+            provider: "gmail",
+            provider_message_id: id,
+            status: giveUp ? "skipped" : "failed",
+            attempts,
+            skip_reason: giveUp ? `failed ${attempts} times: ${reason}` : reason,
+            source_kind: "other",
+            classification: null,
+            matched: false,
+            sender: "",
+            subject: "",
+            processed_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,provider,provider_message_id" },
+        );
+        if (giveUp) skipped += 1;
+      }
     }
     const now = new Date().toISOString();
     await supabaseAdmin.from("gmail_sync_state").upsert(
@@ -444,7 +530,7 @@ export async function syncGmailForUser(userId: string, maxMessages = 20) {
       },
       { onConflict: "user_id,source" },
     );
-    return { ok: true as const, checked: ids.length, processed, matched };
+    return { ok: true as const, checked: ids.length, processed, matched, skipped };
   } catch (error) {
     if (error instanceof GmailReconnectError) return await needsReconnect();
     const message = error instanceof Error ? error.message : "Gmail sync failed.";
