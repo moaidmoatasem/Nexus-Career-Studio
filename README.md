@@ -4,11 +4,13 @@ An open-source, self-hosted career workspace for evidence-led job discovery, ass
 
 ## Where it's going
 
-Nexus is growing into an honest job-search agent for any role (working name "Job Seeker Mate"). It will find roles
-across every source, tailor each application using only facts you have verified, send the applications you approve,
-track replies and draft follow-ups, and show visa sponsorship status. It will never automate LinkedIn or other job boards,
-and never misstate your experience. [STRATEGY.md](STRATEGY.md) explains the direction and [PLAN.md](PLAN.md) the build
-plan.
+Nexus set out to become an honest job-search agent for any role (working name "Job Seeker Mate"). A review of similar
+projects in October 2026 found that [career-ops](https://github.com/career-ops-hq/career-ops), an MIT-licensed
+open-source agent, already covers much of the planned agent work. The next steps are therefore deliberately small: keep
+Nexus safe and working, offer its distinctive pieces (inbox reply tracking, UK sponsor checks) upstream to career-ops,
+and test whether job seekers in the Middle East and North Africa who don't use developer tools want a hosted,
+Arabic-first version. Nexus will never automate LinkedIn or other job boards. [STRATEGY.md](STRATEGY.md) explains the
+decision and [PLAN.md](PLAN.md) the plan.
 
 ## Product boundaries
 

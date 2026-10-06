@@ -75,7 +75,9 @@ only used on the server; **Disconnect** revokes it at Google.
 - `redirect_uri_mismatch`: the redirect URI in Google Cloud differs from `APP_URL` + `/oauth/gmail/return`.
 - `access_denied`: the mailbox isn't listed under Test users.
 - While the consent screen is in **Testing**, Google expires refresh tokens after about 7 days, so you'll see
-  "Reconnect Gmail" weekly. Publishing an app that uses `gmail.readonly` requires Google's verification.
+  "Reconnect Gmail" weekly. Google's help pages also describe putting an unverified app **In production**: connecting
+  then shows an "unverified app" warning, and the project can only ever add 100 new users. That may suit a one-person
+  instance, but Google says user-facing apps should be verified, and this route hasn't been tested yet (PLAN.md 3.5).
 - Gmail connections made with an older Lovable-hosted build must be reconnected once.
 
 **Automatic updates (optional).** Create a Pub/Sub topic, give `gmail-api-push@system.gserviceaccount.com` the
