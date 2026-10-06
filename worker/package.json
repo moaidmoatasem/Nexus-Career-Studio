@@ -2,6 +2,12 @@
   "name": "nexus-portal-worker",
   "private": true,
   "type": "module",
-  "scripts": { "start": "node index.mjs", "check": "node --check index.mjs && node --check adapters.mjs" },
-  "dependencies": { "@supabase/supabase-js": "^2.45.0", "playwright": "1.48.2" }
+  "scripts": {
+    "start": "node index.mjs",
+    "check": "node --check index.mjs && node --check adapters.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "playwright": "1.48.2"
+  }
 }

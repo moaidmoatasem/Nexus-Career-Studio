@@ -80,8 +80,12 @@
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  html { background: var(--background); }
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    background: var(--background);
+  }
   body {
     min-height: 100vh;
     background: var(--background);
@@ -89,15 +93,41 @@
     font-family: var(--font-sans);
     letter-spacing: 0;
   }
-  h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; }
-  ::selection { background: color-mix(in oklab, var(--primary) 28%, transparent); }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: 0;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 28%, transparent);
+  }
 }
 
 @utility surface-lift {
   box-shadow: 0 16px 46px -32px oklch(0 0 0 / 0.7);
 }
 
-.ats-paper { background: oklch(1 0 0); color: oklch(0.15 0 0); font-family: Arial, "Amiri", sans-serif; }
-.ats-paper * { border-color: oklch(0.15 0 0); }
-@media print { body { background: oklch(1 0 0); } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
+.ats-paper {
+  background: oklch(1 0 0);
+  color: oklch(0.15 0 0);
+  font-family: Arial, "Amiri", sans-serif;
+}
+.ats-paper * {
+  border-color: oklch(0.15 0 0);
+}
+@media print {
+  body {
+    background: oklch(1 0 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

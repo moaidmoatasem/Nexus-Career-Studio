@@ -5,9 +5,20 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
 const BLOCKED_V4 = [
-  ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16],
-  ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15],
-  ["198.51.100.0", 24], ["203.0.113.0", 24], ["224.0.0.0", 4], ["240.0.0.0", 4],
+  ["0.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],
+  ["172.16.0.0", 12],
+  ["192.0.0.0", 24],
+  ["192.0.2.0", 24],
+  ["192.168.0.0", 16],
+  ["198.18.0.0", 15],
+  ["198.51.100.0", 24],
+  ["203.0.113.0", 24],
+  ["224.0.0.0", 4],
+  ["240.0.0.0", 4],
 ];
 
 const v4ToInt = (ip) => ip.split(".").reduce((acc, octet) => (acc << 8) + Number(octet), 0) >>> 0;
@@ -26,7 +37,8 @@ export function isBlockedAddress(ip) {
     if (dotted) return isBlockedAddress(dotted[1]);
     const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(x);
     if (hex) {
-      const hi = parseInt(hex[1], 16), lo = parseInt(hex[2], 16);
+      const hi = parseInt(hex[1], 16),
+        lo = parseInt(hex[2], 16);
       return isBlockedAddress([hi >> 8, hi & 255, lo >> 8, lo & 255].join("."));
     }
     // Unique-local (fc00::/7), link-local (fe80::/10), multicast (ff00::/8), NAT64 (64:ff9b::/96).
@@ -40,13 +52,28 @@ export function isBlockedAddress(ip) {
  * may be http. `allowedHosts` (from PORTAL_ALLOWED_HOSTS) restricts top-level pages to those
  * domains and their subdomains. `resolve` is injectable for tests.
  */
-export async function checkUrl(raw, { allowHttp = false, allowedHosts = [], resolve = defaultResolve } = {}) {
+export async function checkUrl(
+  raw,
+  { allowHttp = false, allowedHosts = [], resolve = defaultResolve } = {},
+) {
   let url;
-  try { url = new URL(raw); } catch { return { ok: false, reason: "Not a valid URL" }; }
-  if (url.protocol !== "https:" && !(allowHttp && url.protocol === "http:")) return { ok: false, reason: `Blocked ${url.protocol} link` };
-  if (url.username || url.password) return { ok: false, reason: "Links with embedded credentials are not allowed" };
-  const host = url.hostname.replace(/^\[|\]$/g, "").replace(/\.$/, "").toLowerCase();
-  if (!isIP(host) && (!host.includes(".") || /(?:^|\.)(?:localhost|local|internal|home|lan|corp)$/.test(host))) {
+  try {
+    url = new URL(raw);
+  } catch {
+    return { ok: false, reason: "Not a valid URL" };
+  }
+  if (url.protocol !== "https:" && !(allowHttp && url.protocol === "http:"))
+    return { ok: false, reason: `Blocked ${url.protocol} link` };
+  if (url.username || url.password)
+    return { ok: false, reason: "Links with embedded credentials are not allowed" };
+  const host = url.hostname
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "")
+    .toLowerCase();
+  if (
+    !isIP(host) &&
+    (!host.includes(".") || /(?:^|\.)(?:localhost|local|internal|home|lan|corp)$/.test(host))
+  ) {
     return { ok: false, reason: `Blocked internal host ${host}` };
   }
   if (allowedHosts.length && !allowedHosts.some((d) => host === d || host.endsWith(`.${d}`))) {

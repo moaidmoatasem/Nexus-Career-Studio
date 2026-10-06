@@ -4,10 +4,37 @@
 // the review queue. Whole words only: "Arm" never matches "warm regards".
 
 const LEGAL_WORDS = new Set([
-  "limited", "ltd", "plc", "llc", "llp", "inc", "incorporated", "corp", "corporation",
-  "co", "company", "gmbh", "ag", "sa", "bv", "the",
+  "limited",
+  "ltd",
+  "plc",
+  "llc",
+  "llp",
+  "inc",
+  "incorporated",
+  "corp",
+  "corporation",
+  "co",
+  "company",
+  "gmbh",
+  "ag",
+  "sa",
+  "bv",
+  "the",
 ]);
-const TITLE_STOP_WORDS = new Set(["and", "of", "the", "a", "an", "for", "in", "to", "with", "at", "on", "or"]);
+const TITLE_STOP_WORDS = new Set([
+  "and",
+  "of",
+  "the",
+  "a",
+  "an",
+  "for",
+  "in",
+  "to",
+  "with",
+  "at",
+  "on",
+  "or",
+]);
 
 /** Lower-cased word tokens; keeps "+" and "#" so "C++" and "C#" stay distinct. */
 export function words(text: string): string[] {
@@ -97,27 +124,41 @@ export interface MailMatch<T> {
   suggestion: T | null;
 }
 
-export function matchApplication<T extends MatchCandidate>(apps: T[], mail: MailFacts): MailMatch<T> {
+export function matchApplication<T extends MatchCandidate>(
+  apps: T[],
+  mail: MailFacts,
+): MailMatch<T> {
   const text = `${mail.subject}\n${mail.body.slice(0, 8000)}`;
   const evaluated = apps.flatMap((app) => {
     if (!app.jobs) return [];
-    const byName = Boolean(mail.companyName) && sameCompany(app.jobs.company_name, mail.companyName);
+    const byName =
+      Boolean(mail.companyName) && sameCompany(app.jobs.company_name, mail.companyName);
     const bySender = senderIsCompany(mail.sender, app.jobs.company_name);
     return [{ app, company: byName || bySender, title: titleNamed(app.jobs.title, text) }];
   });
   const strong = evaluated.filter((e) => e.company && e.title);
   const [only] = strong;
   if (strong.length === 1 && only) {
-    return { app: only.app, reason: "employer and role title both named in the email", suggestion: null };
+    return {
+      app: only.app,
+      reason: "employer and role title both named in the email",
+      suggestion: null,
+    };
   }
   if (strong.length > 1) {
-    return { app: null, reason: `${strong.length} applications match this employer and role`, suggestion: null };
+    return {
+      app: null,
+      reason: `${strong.length} applications match this employer and role`,
+      suggestion: null,
+    };
   }
   const sameEmployer = evaluated.filter((e) => e.company);
   const [suggested] = sameEmployer;
   return {
     app: null,
-    reason: sameEmployer.length ? "Employer matched, but the email doesn't name the role" : "No application with this employer",
+    reason: sameEmployer.length
+      ? "Employer matched, but the email doesn't name the role"
+      : "No application with this employer",
     suggestion: sameEmployer.length === 1 && suggested ? suggested.app : null,
   };
 }
@@ -133,13 +174,23 @@ export function mailSourceKind(sender: string, subject: string): MailSourceKind 
   const domain = senderDomain(sender);
   if (hostIs(domain, "linkedin.com")) return "linkedin_alert";
   if (hostIs(domain, "indeed.com")) return "indeed_alert";
-  if (hostIs(domain, "myworkday.com") && /\bjob alert|\bnew jobs?\b|\bjobs? (?:for you|matching)/i.test(subject)) {
+  if (
+    hostIs(domain, "myworkday.com") &&
+    /\bjob alert|\bnew jobs?\b|\bjobs? (?:for you|matching)/i.test(subject)
+  ) {
     return "workday_alert";
   }
   return "recruiter";
 }
 
-const JOB_LINK_DOMAINS = ["linkedin.com", "indeed.com", "myworkdayjobs.com", "greenhouse.io", "lever.co", "ashbyhq.com"];
+const JOB_LINK_DOMAINS = [
+  "linkedin.com",
+  "indeed.com",
+  "myworkdayjobs.com",
+  "greenhouse.io",
+  "lever.co",
+  "ashbyhq.com",
+];
 
 /** Up to three job-posting links on known job sites, matched on the real host name. */
 export function jobLinks(text: string, limit = 3): string[] {
@@ -148,7 +199,10 @@ export function jobLinks(text: string, limit = 3): string[] {
     .filter((value) => {
       try {
         const url = new URL(value);
-        return url.protocol === "https:" && JOB_LINK_DOMAINS.some((domain) => hostIs(url.hostname, domain));
+        return (
+          url.protocol === "https:" &&
+          JOB_LINK_DOMAINS.some((domain) => hostIs(url.hostname, domain))
+        );
       } catch {
         return false;
       }

@@ -33,10 +33,18 @@ export function useProfile() {
     queryKey: ["profile"],
     queryFn: async () => {
       const id = await uid();
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
       if (error) throw error;
       if (data) return data;
-      const { data: created, error: e2 } = await supabase.from("profiles").insert({ id }).select("*").single();
+      const { data: created, error: e2 } = await supabase
+        .from("profiles")
+        .insert({ id })
+        .select("*")
+        .single();
       if (e2) throw e2;
       return created;
     },
@@ -47,7 +55,10 @@ export function useVault() {
   return useQuery({
     queryKey: ["vault"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("vault_items").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("vault_items")
+        .select("*")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -58,7 +69,10 @@ export function useJobs() {
   return useQuery({
     queryKey: ["jobs"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("jobs").select("*").order("discovered_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("jobs")
+        .select("*")
+        .order("discovered_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -86,7 +100,10 @@ export function useApplications() {
   return useQuery({
     queryKey: ["applications"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("applications").select("*, jobs(*)").order("updated_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("applications")
+        .select("*, jobs(*)")
+        .order("updated_at", { ascending: false });
       if (error) throw error;
       return data as Application[];
     },
@@ -97,7 +114,10 @@ export function useRoleDecisions() {
   return useQuery({
     queryKey: ["role-decisions"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("role_decisions").select("*").order("updated_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("role_decisions")
+        .select("*")
+        .order("updated_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -119,7 +139,11 @@ export function useApplicationEvents() {
   return useQuery({
     queryKey: ["application-events"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("application_events").select("*").order("created_at", { ascending: false }).limit(30);
+      const { data, error } = await supabase
+        .from("application_events")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(30);
       if (error) throw error;
       return data;
     },
@@ -130,7 +154,11 @@ export function useUnmatchedMail() {
   return useQuery({
     queryKey: ["unmatched-mail"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("unmatched_mail_messages").select("*").eq("review_status", "pending").order("received_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("unmatched_mail_messages")
+        .select("*")
+        .eq("review_status", "pending")
+        .order("received_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -143,7 +171,12 @@ export function useInvalidate() {
 }
 
 /** Same scoring path as server-side packs: verified vault items only, UK register only for UK roles. */
-export function scoreJob(job: Job, vault: VaultItem[], profile: Profile | undefined, sponsorSimilarity: number | null) {
+export function scoreJob(
+  job: Job,
+  vault: VaultItem[],
+  profile: Profile | undefined,
+  sponsorSimilarity: number | null,
+) {
   return scoreRole({ vault, profile, job, sponsorSimilarity });
 }
 

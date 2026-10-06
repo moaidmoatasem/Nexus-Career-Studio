@@ -32,11 +32,33 @@ export type ExtractedJob = z.infer<typeof extractedJobSchema> & {
 const extractionSchema = {
   type: "object",
   properties: {
-    title: { type: "string" }, company_name: { type: "string" }, location: { type: "string" }, country: { type: "string" }, is_remote: { type: "boolean" },
-    salary_range: { type: ["string", "null"] }, description: { type: "string" }, required_skills: { type: "array", items: { type: "string" } },
-    preferred_skills: { type: "array", items: { type: "string" } }, min_years_exp: { type: "integer" }, domain: { type: "string" }, external_reference: { type: ["string", "null"] },
+    title: { type: "string" },
+    company_name: { type: "string" },
+    location: { type: "string" },
+    country: { type: "string" },
+    is_remote: { type: "boolean" },
+    salary_range: { type: ["string", "null"] },
+    description: { type: "string" },
+    required_skills: { type: "array", items: { type: "string" } },
+    preferred_skills: { type: "array", items: { type: "string" } },
+    min_years_exp: { type: "integer" },
+    domain: { type: "string" },
+    external_reference: { type: ["string", "null"] },
   },
-  required: ["title", "company_name", "location", "country", "is_remote", "salary_range", "description", "required_skills", "preferred_skills", "min_years_exp", "domain", "external_reference"],
+  required: [
+    "title",
+    "company_name",
+    "location",
+    "country",
+    "is_remote",
+    "salary_range",
+    "description",
+    "required_skills",
+    "preferred_skills",
+    "min_years_exp",
+    "domain",
+    "external_reference",
+  ],
   additionalProperties: false,
 };
 
@@ -45,12 +67,21 @@ const extractionSchema = {
  * (set FIRECRAWL_API_URL; a key is optional there).
  */
 function firecrawl(path: "/v2/search" | "/v2/scrape", body: unknown) {
-  const base = (process.env['FIRECRAWL_API_URL']?.trim() || "https://api.firecrawl.dev").replace(/\/+$/, "");
-  const key = process.env['FIRECRAWL_API_KEY']?.trim();
-  if (!key && !process.env['FIRECRAWL_API_URL']) throw new Error("Job-page reading is not set up: set FIRECRAWL_API_KEY (or FIRECRAWL_API_URL for a self-hosted Firecrawl).");
+  const base = (process.env["FIRECRAWL_API_URL"]?.trim() || "https://api.firecrawl.dev").replace(
+    /\/+$/,
+    "",
+  );
+  const key = process.env["FIRECRAWL_API_KEY"]?.trim();
+  if (!key && !process.env["FIRECRAWL_API_URL"])
+    throw new Error(
+      "Job-page reading is not set up: set FIRECRAWL_API_KEY (or FIRECRAWL_API_URL for a self-hosted Firecrawl).",
+    );
   return fetch(`${base}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(key ? { Authorization: `Bearer ${key}` } : {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(key ? { Authorization: `Bearer ${key}` } : {}),
+    },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(90_000),
   });
@@ -60,7 +91,8 @@ export function canonicalizeJobUrl(raw: string) {
   const url = new URL(raw);
   url.hash = "";
   for (const key of [...url.searchParams.keys()]) {
-    if (key.startsWith("utm_") || ["trk", "trackingId", "refId", "gh_src"].includes(key)) url.searchParams.delete(key);
+    if (key.startsWith("utm_") || ["trk", "trackingId", "refId", "gh_src"].includes(key))
+      url.searchParams.delete(key);
   }
   if ([...url.searchParams.keys()].length === 0) url.search = "";
   return url.toString().replace(/\/$/, "");
@@ -94,29 +126,41 @@ export async function knownJobUrls(db: Db, userId: string, urls: string[]): Prom
   return new Set((data ?? []).flatMap((row) => (row.canonical_url ? [row.canonical_url] : [])));
 }
 
-export type SaveJobResult = { status: "added"; jobId: string } | { status: "duplicate" } | { status: "failed"; error: string };
+export type SaveJobResult =
+  | { status: "added"; jobId: string }
+  | { status: "duplicate" }
+  | { status: "failed"; error: string };
 
 /**
  * Saves an extracted posting as one of the user's roles. A plain insert is used on purpose:
  * PostgREST upserts cannot target the partial unique index on (user_id, canonical_url), so an
  * existing posting surfaces as a unique-violation (23505) and is reported as a duplicate.
  */
-export async function saveJobForUser(db: Db, userId: string, job: ExtractedJob, source: string): Promise<SaveJobResult> {
+export async function saveJobForUser(
+  db: Db,
+  userId: string,
+  job: ExtractedJob,
+  source: string,
+): Promise<SaveJobResult> {
   const { data, error } = await db
     .from("jobs")
     .insert({ ...job, external_reference: job.external_reference ?? null, user_id: userId, source })
     .select("id")
     .single();
-  if (error) return error.code === "23505" ? { status: "duplicate" } : { status: "failed", error: error.message };
+  if (error)
+    return error.code === "23505"
+      ? { status: "duplicate" }
+      : { status: "failed", error: error.message };
   return { status: "added", jobId: data.id };
 }
 
 export async function searchPublicJobs(query: string, limit = 6) {
   const response = await firecrawl("/v2/search", { query, limit });
   const text = await response.text();
-  if (!response.ok) throw new Error(`Job discovery failed [${response.status}]: ${text.slice(0, 300)}`);
+  if (!response.ok)
+    throw new Error(`Job discovery failed [${response.status}]: ${text.slice(0, 300)}`);
   const raw = JSON.parse(text) as { data?: { web?: Array<{ url?: string }> } };
-  return (raw.data?.web ?? []).flatMap((item) => item.url ? [item.url] : []);
+  return (raw.data?.web ?? []).flatMap((item) => (item.url ? [item.url] : []));
 }
 
 export async function extractPublicJob(rawUrl: string): Promise<ExtractedJob> {
@@ -124,10 +168,18 @@ export async function extractPublicJob(rawUrl: string): Promise<ExtractedJob> {
   const response = await firecrawl("/v2/scrape", {
     url: canonicalUrl,
     onlyMainContent: true,
-    formats: [{ type: "json", schema: extractionSchema, prompt: "Extract only facts explicitly stated in this current job posting. Use empty values when absent. Never infer employer, salary, skills, experience, or location." }],
+    formats: [
+      {
+        type: "json",
+        schema: extractionSchema,
+        prompt:
+          "Extract only facts explicitly stated in this current job posting. Use empty values when absent. Never infer employer, salary, skills, experience, or location.",
+      },
+    ],
   });
   const text = await response.text();
-  if (!response.ok) throw new Error(`Job page could not be read [${response.status}]: ${text.slice(0, 300)}`);
+  if (!response.ok)
+    throw new Error(`Job page could not be read [${response.status}]: ${text.slice(0, 300)}`);
   const raw = JSON.parse(text) as { json?: unknown; data?: { json?: unknown } };
   const parsed = extractedJobSchema.parse(raw.json ?? raw.data?.json);
   const provider = sourceProvider(canonicalUrl);
@@ -141,13 +193,18 @@ export async function extractPublicJob(rawUrl: string): Promise<ExtractedJob> {
     source_record_id: parsed.external_reference || pathId || fnv1a(canonicalUrl),
     verified_at: new Date().toISOString(),
     lifecycle_status: "active",
-    extraction_provenance: { method: "firecrawl_json_schema", source_url: canonicalUrl, verified_at: new Date().toISOString() },
+    extraction_provenance: {
+      method: "firecrawl_json_schema",
+      source_url: canonicalUrl,
+      verified_at: new Date().toISOString(),
+    },
   };
 }
 
 /** Stable non-cryptographic id (FNV-1a 64-bit), portable across runtimes. */
 function fnv1a(input: string) {
   let h = 0xcbf29ce484222325n;
-  for (const b of new TextEncoder().encode(input)) h = BigInt.asUintN(64, (h ^ BigInt(b)) * 0x100000001b3n);
+  for (const b of new TextEncoder().encode(input))
+    h = BigInt.asUintN(64, (h ^ BigInt(b)) * 0x100000001b3n);
   return h.toString(16).padStart(16, "0");
 }

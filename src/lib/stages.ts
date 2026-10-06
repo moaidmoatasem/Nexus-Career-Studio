@@ -1,7 +1,14 @@
 // Application stage rules shared by Gmail sync, manual email triage and insights.
 // Pure and deterministic so the same rules apply on the server and in tests.
 
-export const PIPELINE = ["queued", "tailored", "applied", "screening", "interviewing", "offered"] as const;
+export const PIPELINE = [
+  "queued",
+  "tailored",
+  "applied",
+  "screening",
+  "interviewing",
+  "offered",
+] as const;
 export type PipelineStage = (typeof PIPELINE)[number];
 export type Stage = PipelineStage | "rejected";
 
@@ -37,5 +44,7 @@ export function nextStageFromEmail(current: string, proposed: Stage | null): Sta
 
 /** True when a stage means the candidate has already submitted the application. */
 export function isSubmittedStage(stage: string): boolean {
-  return stage === "rejected" || PIPELINE.indexOf(stage as PipelineStage) >= PIPELINE.indexOf("applied");
+  return (
+    stage === "rejected" || PIPELINE.indexOf(stage as PipelineStage) >= PIPELINE.indexOf("applied")
+  );
 }
