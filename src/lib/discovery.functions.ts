@@ -47,7 +47,7 @@ export const intakeJobUrl = createServerFn({ method: "POST" })
     if (runError) return { ok: false, error: runError.message };
 
     try {
-      const extracted = await extractPublicJob(canonicalUrl);
+      const extracted = await extractPublicJob(context.userId, canonicalUrl);
       const saved = await saveJobForUser(context.supabase, context.userId, extracted, source);
       if (saved.status === "failed") throw new Error(saved.error);
       const jobId = saved.status === "added" ? saved.jobId : (await findExisting())?.id;
@@ -91,7 +91,7 @@ export const intakeJobText = createServerFn({ method: "POST" })
     const { extractJobFromText, JobTextError } = await import("./jobText.server");
     const { AiError } = await import("./ai.server");
     try {
-      const job = await extractJobFromText(data.text, data.link);
+      const job = await extractJobFromText(context.userId, data.text, data.link);
       // Pasting the text of a role that arrived as an alert-email lead completes that lead.
       if (job.job_url) {
         const { data: lead } = await context.supabase
@@ -167,7 +167,7 @@ export const refreshMyDiscovery = createServerFn({ method: "POST" })
         error: "Add a target title and location in Career Vault first.",
       };
     const query = `${title} ${location} (site:jobs.lever.co OR site:boards.greenhouse.io OR site:jobs.ashbyhq.com OR site:myworkdayjobs.com)`;
-    const found = await searchPublicJobs(query, 8);
+    const found = await searchPublicJobs(context.userId, query, 8);
     const urls = [
       ...new Set(
         found.slice(0, 8).flatMap((url) => {
@@ -187,7 +187,7 @@ export const refreshMyDiscovery = createServerFn({ method: "POST" })
     const errors: string[] = [];
     for (const url of urls.filter((u) => !known.has(u))) {
       try {
-        const extracted = await extractPublicJob(url);
+        const extracted = await extractPublicJob(context.userId, url);
         const blockedEmployer = profile.excluded_employers.some(
           (item) =>
             item.trim() && extracted.company_name.toLowerCase().includes(item.trim().toLowerCase()),

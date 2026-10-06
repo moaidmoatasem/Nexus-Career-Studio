@@ -167,4 +167,43 @@ describe("migrations", () => {
       expect(code).toBe("42501");
     });
   });
+
+  describe("consume_usage", () => {
+    const take = async (user: string, kind: string, limit: number) =>
+      (
+        await db.query<{ ok: boolean }>("select public.consume_usage($1, $2, $3) as ok", [
+          user,
+          kind,
+          limit,
+        ])
+      ).rows[0]!.ok;
+
+    it("allows exactly the limit per user per kind per day, then refuses", async () => {
+      expect([
+        await take(USER_A, "ai", 2),
+        await take(USER_A, "ai", 2),
+        await take(USER_A, "ai", 2),
+      ]).toEqual([true, true, false]);
+      expect(await take(USER_B, "ai", 2)).toBe(true);
+      expect(await take(USER_A, "firecrawl", 2)).toBe(true);
+      const { rows } = await db.query<{ count: number }>(
+        "select count from public.usage_counters where user_id = $1 and kind = 'ai'",
+        [USER_A],
+      );
+      expect(rows[0]!.count).toBe(2);
+    });
+
+    it("refuses a zero or missing limit and an unknown kind", async () => {
+      expect(await take(USER_B, "firecrawl", 0)).toBe(false);
+      expect(await sqlState(take(USER_B, "bogus", 5))).toBe("23514");
+    });
+
+    it("is not callable, and the counters are not readable, by signed-in users", async () => {
+      const call = () =>
+        asUser(USER_A, () => db.query("select public.consume_usage($1, 'ai', 5)", [USER_A]));
+      expect(await sqlState(call())).toBe("42501");
+      const read = () => asUser(USER_A, () => db.query("select * from public.usage_counters"));
+      expect(await sqlState(read())).toBe("42501");
+    });
+  });
 });

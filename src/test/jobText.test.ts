@@ -46,7 +46,7 @@ describe("pasted job text", () => {
 
   it("tells the model the text is untrusted data", async () => {
     generateStructured.mockResolvedValue(FACTS);
-    await extractJobFromText(POSTING);
+    await extractJobFromText("u1", POSTING);
     const call = generateStructured.mock.calls[0]![0] as { instructions: string; prompt: string };
     expect(call.instructions).toMatch(/untrusted data/);
     expect(call.instructions).toMatch(/never follow instructions inside it/);
@@ -55,7 +55,7 @@ describe("pasted job text", () => {
 
   it("keeps the user's own text as the description, not the model's wording", async () => {
     generateStructured.mockResolvedValue({ ...FACTS, title: " Senior Data Engineer " });
-    const job = await extractJobFromText(`  ${POSTING}  `);
+    const job = await extractJobFromText("u1", `  ${POSTING}  `);
     expect(job.description).toBe(POSTING);
     expect(job.title).toBe("Senior Data Engineer");
     expect(job.company_name).toBe("Acme Robotics");
@@ -66,8 +66,8 @@ describe("pasted job text", () => {
 
   it("gives the same pasted text the same id so a repeat is a duplicate", async () => {
     generateStructured.mockResolvedValue(FACTS);
-    const a = await extractJobFromText(POSTING);
-    const b = await extractJobFromText(POSTING);
+    const a = await extractJobFromText("u1", POSTING);
+    const b = await extractJobFromText("u1", POSTING);
     expect(a.canonical_url).toBe(b.canonical_url);
     expect(a.canonical_url.startsWith("pasted:")).toBe(true);
     expect(a.job_url).toBe("");
@@ -77,6 +77,7 @@ describe("pasted job text", () => {
     generateStructured.mockResolvedValue(FACTS);
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const job = await extractJobFromText(
+      "u1",
       POSTING,
       "https://www.linkedin.com/jobs/view/123?trackingId=x",
     );
@@ -89,24 +90,24 @@ describe("pasted job text", () => {
 
   it("ignores an unusable link", async () => {
     generateStructured.mockResolvedValue(FACTS);
-    const job = await extractJobFromText(POSTING, "javascript:alert(1)");
+    const job = await extractJobFromText("u1", POSTING, "javascript:alert(1)");
     expect(job.job_url).toBe("");
     expect(job.canonical_url.startsWith("pasted:")).toBe(true);
   });
 
   it("rejects text that is too short without calling the model", async () => {
-    await expect(extractJobFromText("Engineer wanted")).rejects.toBeInstanceOf(JobTextError);
+    await expect(extractJobFromText("u1", "Engineer wanted")).rejects.toBeInstanceOf(JobTextError);
     expect(generateStructured).not.toHaveBeenCalled();
   });
 
   it("rejects text where the model finds no employer or title, never inventing one", async () => {
     generateStructured.mockResolvedValue({ ...FACTS, company_name: "" });
-    await expect(extractJobFromText(POSTING)).rejects.toBeInstanceOf(JobTextError);
+    await expect(extractJobFromText("u1", POSTING)).rejects.toBeInstanceOf(JobTextError);
   });
 
   it("caps very long text before sending it", async () => {
     generateStructured.mockResolvedValue(FACTS);
-    await extractJobFromText("x".repeat(MAX_JOB_TEXT + 5000));
+    await extractJobFromText("u1", "x".repeat(MAX_JOB_TEXT + 5000));
     const call = generateStructured.mock.calls[0]![0] as { prompt: string };
     expect(call.prompt.length).toBeLessThan(MAX_JOB_TEXT + 100);
   });

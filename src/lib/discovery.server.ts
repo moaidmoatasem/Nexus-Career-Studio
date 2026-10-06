@@ -69,7 +69,8 @@ const extractionSchema = {
  * Firecrawl's v2 API, hosted (api.firecrawl.dev, needs FIRECRAWL_API_KEY) or self-hosted
  * (set FIRECRAWL_API_URL; a key is optional there).
  */
-function firecrawl(path: "/v2/search" | "/v2/scrape", body: unknown) {
+async function firecrawl(userId: string, path: "/v2/search" | "/v2/scrape", body: unknown) {
+  await (await import("./usage.server")).consumeUsage(userId, "firecrawl");
   const base = (process.env["FIRECRAWL_API_URL"]?.trim() || "https://api.firecrawl.dev").replace(
     /\/+$/,
     "",
@@ -162,9 +163,9 @@ export async function saveJobForUser(
   return { status: "added", jobId: data.id };
 }
 
-export async function searchPublicJobs(query: string, limit = 6) {
+export async function searchPublicJobs(userId: string, query: string, limit = 6) {
   // Web search may surface board pages; they are dropped, never fetched.
-  const response = await firecrawl("/v2/search", { query, limit });
+  const response = await firecrawl(userId, "/v2/search", { query, limit });
   const text = await response.text();
   if (!response.ok)
     throw new Error(`Job discovery failed [${response.status}]: ${text.slice(0, 300)}`);
@@ -180,7 +181,10 @@ export async function searchPublicJobs(query: string, limit = 6) {
  * from the API as published; only skills, years and domain are read from that text by the model.
  * Returns null for any other page, or when the API can't be used, so the page is read instead.
  */
-async function extractFromAtsApi(canonicalUrl: string): Promise<ExtractedJob | null> {
+async function extractFromAtsApi(
+  userId: string,
+  canonicalUrl: string,
+): Promise<ExtractedJob | null> {
   const posting = parseAtsPosting(canonicalUrl);
   if (!posting) return null;
   let facts: AtsFacts;
@@ -194,6 +198,7 @@ async function extractFromAtsApi(canonicalUrl: string): Promise<ExtractedJob | n
   if (facts.title.length < 2 || facts.description.length < 40) return null;
   const { readJobFacts } = await import("./jobText.server");
   const read = await readJobFacts(
+    userId,
     `Title: ${facts.title}\nEmployer: ${facts.company}\nLocation: ${facts.location}\n\n${facts.description}`.slice(
       0,
       20_000,
@@ -230,12 +235,12 @@ async function extractFromAtsApi(canonicalUrl: string): Promise<ExtractedJob | n
   };
 }
 
-export async function extractPublicJob(rawUrl: string): Promise<ExtractedJob> {
+export async function extractPublicJob(userId: string, rawUrl: string): Promise<ExtractedJob> {
   assertNotJobBoard(rawUrl);
   const canonicalUrl = canonicalizeJobUrl(rawUrl);
-  const fromApi = await extractFromAtsApi(canonicalUrl);
+  const fromApi = await extractFromAtsApi(userId, canonicalUrl);
   if (fromApi) return fromApi;
-  const response = await firecrawl("/v2/scrape", {
+  const response = await firecrawl(userId, "/v2/scrape", {
     url: canonicalUrl,
     onlyMainContent: true,
     formats: [

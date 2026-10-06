@@ -137,7 +137,7 @@ vi.mock("@/lib/alertLeads.server", () => ({
   extractAlertLeads: (...args: unknown[]) => extractAlertLeads(...args),
 }));
 
-import { AiError } from "@/lib/ai.server";
+import { AiError, UsageLimitError } from "@/lib/ai.server";
 import { PAUSED_MESSAGE, syncGmailForUser } from "@/server/gmailSync.server";
 
 const USER = "user-1";
@@ -357,6 +357,31 @@ describe("one bad message never blocks the sync", () => {
     await expect(syncGmailForUser(USER)).rejects.toBeInstanceOf(AiError);
     expect(tables["gmail_sync_state"]![0]).toMatchObject({ status: "paused" });
     expect(row("k1")).toBeUndefined();
+  });
+});
+
+describe("the daily AI cap", () => {
+  it("stops the sync without counting an attempt against the message, and resumes after the reset", async () => {
+    state.mailbox = [
+      {
+        id: "c1",
+        from: "Initech <hr@initech.example>",
+        subject: "Interview invitation",
+        body: "Please pick a time to interview with us.",
+      },
+    ];
+    classify.mockRejectedValueOnce(
+      new UsageLimitError("Daily AI limit reached; it resets at midnight UTC."),
+    );
+    await expect(syncGmailForUser(USER)).rejects.toBeInstanceOf(UsageLimitError);
+    expect(tables["gmail_sync_state"]![0]).toMatchObject({
+      status: "needs_attention",
+      paused_at: null,
+    });
+    expect(row("c1")).toBeUndefined();
+    classify.mockResolvedValue(INFORMATIONAL);
+    expect((await syncGmailForUser(USER)).ok).toBe(true);
+    expect(row("c1")).toMatchObject({ status: "processed", attempts: 0 });
   });
 });
 

@@ -81,12 +81,14 @@ export function leadsFromAlert(
 
 /** Reads the postings listed in a LinkedIn or Indeed alert email as leads (no description yet). */
 export async function extractAlertLeads(input: {
+  userId: string;
   sender: string;
   subject: string;
   body: string;
   provider: AlertProvider;
 }): Promise<ExtractedJob[]> {
   const facts = await generateStructured({
+    userId: input.userId,
     instructions: INSTRUCTIONS,
     prompt: buildJobTextPrompt(`Subject: ${input.subject}\n\n${input.body}`),
     schema: leadsSchema,
