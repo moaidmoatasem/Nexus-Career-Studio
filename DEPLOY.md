@@ -36,6 +36,10 @@ dashboard. Data stays on your computer. Use this to look around; use a hosted pr
 5. Gmail, Firecrawl and the scheduler are optional here; health (`/api/public/health`) shows what is switched on.
    Greenhouse, Lever and Ashby links work without Firecrawl.
 
+To check the whole journey end to end (sign-up, Career Vault, importing a role, tailoring) without any AI
+provider: `bun run build`, `bunx playwright install chromium` once, then `bun run e2e`. It starts the built app on
+port 3100 with a fake AI server and uses the Supabase settings from `.env`; CI runs the same test every night.
+
 Stop it with `bun run db:local:stop` (your data is kept for next time). When you're ready to deploy, create the
 hosted project in section 1; there's nothing to carry over from the local trial.
 
