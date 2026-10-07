@@ -206,7 +206,7 @@ Behind Gate 2. Needs Phase 6. JobSync already ships an MCP server; compare befor
 
 - [ ] **13.1 Import an export file** to move data from the Lovable-hosted app: an authenticated server function that reads the **Download my data** JSON, validates it with zod, gives rows new ids while keeping their links (jobs, applications, events, vault items), reuses catalog jobs by `canonical_url`, and can safely run twice. Test it on a PGlite fixture.
 - [ ] **13.2 Error reporting:** optional `SENTRY_DSN` (also works with self-hosted GlitchTip) for server and browser errors, off when unset; it replaces the Lovable error reporter that was removed.
-- [ ] **13.3 End-to-end smoke test:** Playwright against local Supabase (`npx supabase start`) covering sign-up, adding a role and tailoring with a stubbed AI server, run nightly in CI.
+- [x] **13.3 End-to-end smoke test** (done at the owner's request: `e2e/smoke.spec.ts`, `e2e/fake-ai.mjs`, `.github/workflows/e2e.yml`; `bun run e2e` locally): Playwright against local Supabase (`npx supabase start`) covering sign-up, adding a role and tailoring with a stubbed AI server, run nightly in CI.
 
 ## Track A: contributions to career-ops
 

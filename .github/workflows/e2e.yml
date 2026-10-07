@@ -1,0 +1,58 @@
+name: E2E smoke
+
+# The whole app against local Supabase and a fake AI server (PLAN.md 13.3): nightly, on demand,
+# and on pull requests that change the test itself.
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "e2e/**"
+      - "playwright.config.ts"
+      - ".github/workflows/e2e.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,postgres-meta,mailpit,supavisor
+      - name: Export local Supabase settings
+        run: |
+          eval "$(supabase status -o env)"
+          {
+            echo "VITE_SUPABASE_URL=$API_URL"
+            echo "SUPABASE_URL=$API_URL"
+            echo "VITE_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY"
+            echo "SUPABASE_PUBLISHABLE_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+      - run: bun run build
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7

@@ -30,8 +30,9 @@ The step-by-step plan for what's left is in [PLAN.md](PLAN.md).
 - [x] Standalone: own Supabase, any OpenAI-compatible AI, direct Google OAuth + Gmail API, Firecrawl API, plain Vite build — no Lovable services
 - [x] Direction set from a market review: an honest, cross-platform job-search agent for any role ([STRATEGY.md](STRATEGY.md))
 - [x] Premortem and review of similar projects; the plan now runs on three tracks with decision gates ([STRATEGY.md](STRATEGY.md), [PLAN.md](PLAN.md))
-- [ ] Board-safe job intake: no server-side fetching of LinkedIn or other job boards (PLAN.md 2.5)
-- [ ] Inbox safety: filter mail before any AI call, recover from stalls, flag likely scams (PLAN.md 2.6)
+- [x] Board-safe job intake: no server-side fetching of LinkedIn or other job boards (PLAN.md 2.5)
+- [x] Inbox safety: filter mail before any AI call, recover from stalls, flag likely scams (PLAN.md 2.6)
+- [x] End-to-end smoke test against local Supabase with a fake AI server, nightly in CI (PLAN.md 13.3)
 - [ ] Real Gmail walk-through (PLAN.md 3.4)
 - [ ] Gmail live push (PLAN.md Phase 4)
 - [ ] Contributions to career-ops: Gmail reply feed, UK sponsor plugin, Gulf alert parsers, Arabic and Gulf CVs (PLAN.md Track A)

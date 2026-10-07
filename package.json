@@ -13,6 +13,7 @@
     "format": "eslint . --fix",
     "test": "vitest run",
     "test:watch": "vitest",
+    "e2e": "playwright test",
     "db:local": "npx supabase start",
     "db:local:stop": "npx supabase stop",
     "db:types": "supabase gen types typescript --linked > src/integrations/supabase/types.ts",
@@ -83,6 +84,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "1.48.2",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",
     "@types/node": "^22.16.5",
