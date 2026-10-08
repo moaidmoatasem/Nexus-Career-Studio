@@ -7,7 +7,7 @@ details are in [DEPLOY.md](DEPLOY.md).
 
 ## How to work through this plan
 
-- Order: Track N first, 0 → 1 → 2 → 3, then 4 if wanted. Tracks A and B run alongside it. Phases 5–12 sit behind the gates below; once a gate opens, these prerequisites still apply: Phase 5 needs Phase 1; Phase 6 needs 5; Phase 7 needs 6.2–6.4; Phase 8 needs 5.4; Phases 9 and 10 need only Phase 1; Phase 11 needs 6. Phase 12.1–12.3 must be finished before anyone else's data is stored on a server the owner runs. Phase 13 (13.1–13.2; 13.3 is done) waits for the owner.
+- Order: Track N first, 0 → 1 → 2 → 3, then 4 if wanted. Tracks A and B run alongside it. Phases 5–12 sit behind the gates below; once a gate opens, these prerequisites still apply: Phase 5 needs Phase 1; Phase 6 needs 5; Phase 7 needs 6.2–6.4; Phase 8 needs 5.4; Phases 9 and 10 need only Phase 1, except 10.6 (Arabic and Gulf CVs), which needs 5.2; Phase 11 needs 6. Phase 12.1–12.3 must be finished before anyone else's data is stored on a server the owner runs. Phase 13 (13.1–13.2; 13.3 is done) waits for the owner.
 - Gates are binding. Work behind a gate starts only after the owner ticks that gate in this file; Claude Code never ticks a gate.
 - If the next Track N task is waiting on the owner, continue with the first open **[claude]** task in Track B, or in Track A once A.0 is done, and say which one you picked in the PR.
 - Before outlining any phase from 5 onwards, check whether career-ops or JobSync already does it (STRATEGY.md, "Where Nexus stands"). If one does, the outline PR proposes contributing there, or reusing its code with its licence notice kept, instead of rebuilding.
