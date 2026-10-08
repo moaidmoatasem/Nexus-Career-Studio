@@ -1,4 +1,5 @@
 ## Working in this repo
+- New here, or one of several agents? Start with [docs/agents/README.md](docs/agents/README.md): read order, checks, branch and PR rules, and the task board.
 - Nexus is standalone: it must run on any Node host with a Supabase project, and every other integration stays optional.
 - Do not add dependencies on hosted gateways or vendor-specific build plugins; call providers through their public APIs.
 - Keep `main` deployable and do not rewrite published history.

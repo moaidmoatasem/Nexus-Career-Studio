@@ -18,19 +18,18 @@ details are in [DEPLOY.md](DEPLOY.md).
 - Secrets live only in `.env` (git-ignored) or the host's secret store, never in commits, PR text, logs or chat. Generate random secrets yourself and write them straight into `.env` without printing them.
 - Before every push: `bun install --frozen-lockfile`, `bunx tsc --noEmit`, `bun run lint` (from task 1.1 on), `bun run test`, `bun run build`. Logic changes get tests. A new environment variable goes into `.env.example` and DEPLOY.md, and into `/api/public/health` when it switches a feature on.
 - The PR that finishes a task ticks its box here and updates `roadmap.md`. If a task turns out wrong or impossible, change this plan in the same PR and say why.
+- Working in parallel: each task has a brief in `docs/agents/briefs/` and a file area in `docs/agents/STATUS.md`; agents take only `ready` or assigned tasks, stay inside their file area, use a branch named `agent/<task-id>-<slug>`, and follow [docs/agents/README.md](docs/agents/README.md).
 - Save tokens: open only the files a task names; skip `bun.lock`, `src/integrations/supabase/types.ts`, `src/routeTree.gen.ts` and old migrations unless the task needs them; run single test files while iterating (`bunx vitest run src/test/<file>`) and the full suite before pushing.
 
-## Where things stand (2026-10-06)
+## Where things stand (2026-10-08)
 
-- PR #2 (review fixes) and PR #3 (standalone: own Supabase, any OpenAI-compatible AI, own Google OAuth for Gmail, direct Firecrawl API, plain Vite build) are merged.
-- The typecheck passes, 98 tests pass and the build works. `bun run lint` passes (7 `react-refresh` warnings) since task 1.1. CI runs on every pull request since task 1.3.
-- Nothing has run against real AI, Firecrawl or Google accounts yet, and the portal helper has never run on a real posting.
-- The agent's autonomy setting (Review-first, Guided, High autonomy) is saved but changes nothing.
-- Pasted job-board links and links in LinkedIn and Indeed alert emails are fetched on the server through Firecrawl, which those boards' terms forbid; task 2.5 stops that.
-- **Find roles now** runs one Firecrawl web search (the first target title and location) for up to 8 roles; task 2.5 moves Greenhouse, Lever and Ashby to their public APIs.
-- The premortem found three inbox defects, which task 2.6 fixes. After the first sync, `syncGmailForUser` takes every new inbox message, sends it in full to the AI provider, stores its sender and subject, and puts anything unmatched into the review queue, which shows informational mail too. One message the AI can't classify fails every later sync. One 402 or 403 from the AI provider pauses Gmail until the user disconnects and reconnects.
+- Phases 1 and 2 are done (except deleting `.lovable/`, which waits for 0.1b), and so are B.2 (the demand-test kit) and 13.3 (the end-to-end smoke test, at the owner's request).
+- The typecheck, lint (7 accepted `react-refresh` warnings), 274 unit tests and the build pass in CI on every pull request. The PGlite test replays every migration, and the Playwright smoke test (`bun run e2e`) runs the built app against local Supabase with a fake AI server every night.
+- The server never fetches job boards: roles from them enter through alert emails (as leads) or pasted text. Greenhouse, Lever and Ashby are read through their public APIs. Mail is filtered before any AI call, one bad message no longer blocks the sync, and likely scams are flagged.
+- Nothing has run against real AI, Firecrawl or Google accounts yet, and the portal helper has never run on a real posting. Phase 0 (accounts, or local Supabase per DEPLOY.md section 0) and Phase 3 (deploy) are the owner's next steps.
+- The agent's autonomy setting (Review-first, Guided, High autonomy) is saved but changes nothing until 6.5.
+- Several agents can now work in parallel: every open task has a brief in `docs/agents/briefs/`, and `docs/agents/STATUS.md` shows its state and file area. The gated briefs are the detailed-task PR for Phases 5, 9, 10 and 12.2–12.3; building still waits for Gate 1.
 - A review of similar projects found that career-ops (MIT licence, ~73,600 stars) already does most of what Phases 5–11 planned. STRATEGY.md records the comparison, the three-track decision and the owner's open decisions.
-- Open roadmap items: the Track N fixes, the real Gmail walk-through, Gmail live push, Tracks A and B, and the gated phases.
 
 ## Tracks and gates
 
